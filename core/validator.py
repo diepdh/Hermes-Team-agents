@@ -1,12 +1,16 @@
 """
-JSON Schema validator cho Task, Artifact và Rubric trong Hermes Phase 0.
+JSON Schema validator cho Task, Artifact và Rubric trong Hermes Phase 0.5.
+
+Schema được load từ thư mục cài đặt code (gần file này), không phụ thuộc
+vào workspace hiện hành để có thể dùng chung cho mọi workspace.
 """
 
 import json
 import pathlib
 from jsonschema import validate, ValidationError
 
-_SCHEMA_DIR = pathlib.Path("schemas")
+_BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
+_SCHEMA_DIR = _BASE_DIR / "schemas"
 
 
 def _load_schema(name: str) -> dict:
