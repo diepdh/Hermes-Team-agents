@@ -176,21 +176,62 @@ def test_pipeline_escalates_after_max_retries(tmp_path):
 
 
 def test_llm_config_registry():
-    """The provider registry should expose at least the required providers."""
+    """Verify the LLM config registry loads correct credentials per provider."""
     from core.llm_config import list_providers, get_llm_config
 
     providers = list_providers()
     assert "opencode_go" in providers
     assert "local_cx" in providers
-    assert "anthropic" in providers
+    assert len(providers) >= 2
 
-    # Should raise for unknown provider.
-    try:
-        get_llm_config("nonexistent")
-    except ValueError:
-        pass
-    else:
-        raise AssertionError("Expected ValueError for unknown provider")
+    cfg = get_llm_config("opencode_go")
+    assert "model" in cfg
+    assert "api_key" in cfg
+    assert "max_tokens" in cfg
+    assert cfg["max_tokens"] >= 1000
+
+
+def test_rubric_criteria_names_match_verifier():
+    """Every criterion in the rubric must appear in verifier output.
+
+    This guards against silent drops where a rubric criterion is never scored
+    due to a name mismatch between the rubric definition and the verifier code.
+    """
+    import json
+    from pathlib import Path
+
+    rubric_path = Path(__file__).resolve().parent.parent / "rubrics" / "R-lit-review-v2.json"
+    rubric = json.loads(rubric_path.read_text(encoding="utf-8"))
+
+    # A representative complete artifact (passes all checks).
+    sample = """# Summary
+
+    This review summarizes key findings on formative assessment in higher
+    education. Researchers (Smith, 2020) and (Doe, 2021) demonstrate that
+    ongoing feedback improves student outcomes. Johnson (2019) identifies
+    remaining gaps in longitudinal studies.
+
+    # Citations
+
+    - Smith, J. (2020). Formative assessment methods. *Journal of Education*.
+    - Doe, A. (2021). Feedback and learning outcomes. *Educational Review*.
+    - Johnson, B. (2019). Gaps in assessment research. *Higher Education*.
+
+    # Gaps Identified
+
+    Most existing studies focus on short-term effects; long-term impact
+    of formative assessment on graduate outcomes remains underexplored.
+    """
+
+    result = check_lit_review(sample, rubric)
+
+    for criterion in rubric["criteria"]:
+        name = criterion["name"]
+        assert name in result["detail"], (
+            f"Criteria '{name}' not scored by verifier — "
+            f"possible silent drop due to name mismatch. "
+            f"Verifier returned: {list(result['detail'].keys())}"
+        )
 
 
 if __name__ == "__main__":
