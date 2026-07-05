@@ -15,21 +15,22 @@ except ModuleNotFoundError:
     from core.llm_config import get_llm_config
 
 
-def _build_llm():
+def _build_llm(provider: str | None = None):
     """Build a CrewAI LLM instance from Hermes configuration."""
-    cfg = get_llm_config()
+    cfg = get_llm_config(provider)
     kwargs = {
         "model": cfg["model"],
         "api_key": cfg["api_key"],
         "temperature": 0.3,
         "timeout": cfg.get("timeout", 120),
+        "max_tokens": cfg.get("max_tokens", 4000),
     }
     if cfg.get("base_url"):
         kwargs["base_url"] = cfg["base_url"]
     return LLM(**kwargs)
 
 
-def build_researcher_agent():
+def build_researcher_agent(provider: str | None = None):
     """Return a CrewAI Researcher Agent."""
     return Agent(
         role="Researcher",
@@ -38,7 +39,7 @@ def build_researcher_agent():
             "Ban la mot nha nghien cuu can trong, luon ghi ro nguon goc moi "
             "thong tin va khong suy dien ngoai pham vi tai lieu tim duoc."
         ),
-        llm=_build_llm(),
+        llm=_build_llm(provider),
         verbose=True,
         allow_delegation=False,
         tools=[],  # Phase 1: no real web search yet.

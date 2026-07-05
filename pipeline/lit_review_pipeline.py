@@ -6,6 +6,7 @@ with a rule-based rubric, and retries with diagnostic feedback if it fails.
 """
 
 import json
+import os
 import time
 from pathlib import Path
 from typing import Tuple
@@ -30,6 +31,7 @@ def run_lit_review_pipeline(
     task_id: str,
     artifact_id: str,
     rubric: dict,
+    provider: str | None = None,
     attempt: int = 1,
     max_retries: int = 2,
 ) -> Tuple[dict, dict]:
@@ -41,6 +43,7 @@ def run_lit_review_pipeline(
         task_id: Task identifier to link the artifact to.
         artifact_id: Artifact identifier (will be versioned automatically).
         rubric: Rubric dictionary with criteria and pass_threshold.
+        provider: LLM provider key (None uses HERMES_LLM_PROVIDER default).
         attempt: Current attempt number (starts at 1).
         max_retries: Maximum number of retry attempts after the first failure.
 
@@ -50,7 +53,7 @@ def run_lit_review_pipeline(
     ws = Workspace(workspace_root)
     ws.ensure_initialized()
 
-    agent = build_researcher_agent()
+    agent = build_researcher_agent(provider)
     output_path = str(ws.artifact_dir / f"{artifact_id}_v{attempt}.md")
     task_def = build_lit_review_task(agent, research_question, output_path)
 
@@ -110,6 +113,7 @@ def run_lit_review_with_baseline(
     artifact_id: str,
     rubric: dict,
     run_id: str,
+    provider: str | None = None,
     max_retries: int = 2,
 ) -> dict:
     """Run the pipeline and record token/time baseline metrics.
@@ -122,7 +126,7 @@ def run_lit_review_with_baseline(
     start = time.time()
     artifact, result = run_lit_review_pipeline(
         workspace_root, research_question, task_id, artifact_id, rubric,
-        attempt=1, max_retries=max_retries,
+        provider=provider, attempt=1, max_retries=max_retries,
     )
     elapsed = round(time.time() - start, 2)
 
@@ -136,6 +140,7 @@ def run_lit_review_with_baseline(
 
     baseline = {
         "run_id": run_id,
+        "provider": provider or os.environ.get("HERMES_LLM_PROVIDER", "opencode_go"),
         "research_question": research_question,
         "artifact_id": artifact_id,
         "attempts": artifact["version"],
