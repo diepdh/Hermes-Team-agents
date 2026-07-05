@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Hermes Artifact Schema",
+  "description": "Schema for a versioned Artifact produced by a Task in Hermes.",
+  "type": "object",
+  "required": [
+    "artifact_id",
+    "produced_by_task",
+    "type",
+    "version",
+    "content_ref",
+    "metadata",
+    "verification_status",
+    "verification_notes"
+  ],
+  "properties": {
+    "artifact_id": {
+      "type": "string",
+      "pattern": "^A-\\d+$",
+      "description": "Unique artifact identifier, e.g. A-0001"
+    },
+    "produced_by_task": {
+      "type": "string",
+      "pattern": "^T-\\d{8}-\\d+$"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "lit_review_md",
+        "course_outline",
+        "lecture_draft",
+        "quiz_bank",
+        "verified_content",
+        "final_content"
+      ]
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "content_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "word_count": { "type": "integer", "minimum": 0 },
+        "sources": { "type": "integer", "minimum": 0 },
+        "subagent": { "type": "string" }
+      }
+    },
+    "verification_status": {
+      "type": "string",
+      "enum": ["pending", "pass", "fail"]
+    },
+    "verification_notes": {
+      "type": "string"
+    },
+    "parent_artifact_id": {
+      "oneOf": [
+        { "type": "string", "pattern": "^A-\\d+$" },
+        { "type": "null" }
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}
