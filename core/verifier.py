@@ -29,21 +29,33 @@ def check_lit_review(content: str, rubric: dict) -> dict:
         citation_count = len(re.findall(r"\(\d{4}\)|\([A-Za-z\-]+[,\s]+\d{4}\)", content))
         scores["citation_completeness"] = min(citation_count / 3.0, 1.0)
 
-    if "relevance" in criterion_names:
+    if "relevance" in criterion_names or "relevance_summary" in criterion_names:
         # The artifact must explicitly contain a Summary section.
-        scores["relevance"] = 1.0 if re.search(r"(^|#+\s*)summary", text_lower) else 0.0
+        score = 1.0 if re.search(r"(^|#+\s*)summary", text_lower) else 0.0
+        if "relevance" in criterion_names:
+            scores["relevance"] = score
+        if "relevance_summary" in criterion_names:
+            scores["relevance_summary"] = score
 
-    if "gap_identification" in criterion_names:
-        scores["gap_identification"] = 1.0 if "gaps identified" in text_lower else 0.0
+    if "gap_identification" in criterion_names or "gaps_section" in criterion_names:
+        score = 1.0 if "gaps identified" in text_lower else 0.0
+        if "gap_identification" in criterion_names:
+            scores["gap_identification"] = score
+        if "gaps_section" in criterion_names:
+            scores["gaps_section"] = score
 
-    if "clarity" in criterion_names:
+    if "clarity" in criterion_names or "formatting_clarity" in criterion_names:
         word_count = len(content.split())
         if word_count > 100:
-            scores["clarity"] = 1.0
+            score = 1.0
         elif word_count > 50:
-            scores["clarity"] = 0.5
+            score = 0.5
         else:
-            scores["clarity"] = 0.0
+            score = 0.0
+        if "clarity" in criterion_names:
+            scores["clarity"] = score
+        if "formatting_clarity" in criterion_names:
+            scores["formatting_clarity"] = score
 
     weighted_total = sum(
         scores.get(c["name"], 0.0) * c["weight"]

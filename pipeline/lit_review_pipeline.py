@@ -25,6 +25,35 @@ except ModuleNotFoundError:  # pragma: no cover - supports running without packa
     from core.verifier import check_lit_review
 
 
+# CrewAI usage_metrics shape changed across versions.  Some builds expose
+# token usage as a list of UsageMetrics objects.  This helper normalizes it.
+def _extract_usage(crew):
+    """Return normalized token usage from a CrewAI Crew instance if available."""
+    empty = {"prompt": 0, "completion": 0, "total": 0}
+    metrics = getattr(crew, "usage_metrics", None)
+    if not metrics:
+        return empty
+
+    # Newer CrewAI: usage_metrics is a list of UsageMetrics objects.
+    if isinstance(metrics, list) and metrics:
+        last = metrics[-1]
+        return {
+            "prompt": getattr(last, "prompt_tokens", 0) or 0,
+            "completion": getattr(last, "completion_tokens", 0) or 0,
+            "total": getattr(last, "total_tokens", 0) or 0,
+        }
+
+    # Dict form.
+    if isinstance(metrics, dict):
+        return {
+            "prompt": metrics.get("prompt_tokens", 0) or 0,
+            "completion": metrics.get("completion_tokens", 0) or 0,
+            "total": metrics.get("total_tokens", 0) or 0,
+        }
+
+    return empty
+
+
 def run_lit_review_pipeline(
     workspace_root: str,
     research_question: str,
@@ -34,7 +63,7 @@ def run_lit_review_pipeline(
     provider: str | None = None,
     attempt: int = 1,
     max_retries: int = 2,
-) -> Tuple[dict, dict]:
+) -> Tuple[dict, dict, dict]:
     """Run one literature-review pipeline iteration including verification.
 
     Args:
@@ -48,7 +77,7 @@ def run_lit_review_pipeline(
         max_retries: Maximum number of retry attempts after the first failure.
 
     Returns:
-        Tuple of (artifact_record, verification_result).
+        Tuple of (artifact_record, verification_result, usage_summary).
     """
     ws = Workspace(workspace_root)
     ws.ensure_initialized()
@@ -58,7 +87,11 @@ def run_lit_review_pipeline(
     task_def = build_lit_review_task(agent, research_question, output_path)
 
     crew = Crew(agents=[agent], tasks=[task_def], process=Process.sequential)
+    start = time.time()
     crew.kickoff()
+    crew.calculate_usage_metrics()
+    elapsed = round(time.time() - start, 2)
+    usage = _extract_usage(crew)
 
     with open(output_path, encoding="utf-8") as f:
         content = f.read()
@@ -83,7 +116,7 @@ def run_lit_review_pipeline(
 
     if result["passed"]:
         print(f"[PASS] {artifact_id} v{artifact['version']} -- score {result['score']}")
-        return artifact, result
+        return artifact, result, {"elapsed_seconds": elapsed, "usage": usage}
 
     print(f"[FAIL] {artifact_id} v{artifact['version']} -- score {result['score']} -- {result['detail']}")
     if attempt < max_retries:
@@ -92,18 +125,58 @@ def run_lit_review_pipeline(
             f"[Ghi chu tu lan truoc -- can khac phuc]: "
             f"{json.dumps(result['detail'], ensure_ascii=False)}"
         )
-        return run_lit_review_pipeline(
+        inner_artifact, inner_result, inner_usage = run_lit_review_pipeline(
             workspace_root,
             retry_question,
             task_id,
             artifact_id,
             rubric,
+            provider=provider,
             attempt=attempt + 1,
             max_retries=max_retries,
         )
+        # Aggregate time/tokens across attempts.
+        inner_usage["elapsed_seconds"] = round(elapsed + inner_usage.get("elapsed_seconds", 0), 2)
+        inner_usage["usage"]["prompt"] += usage.get("prompt", 0)
+        inner_usage["usage"]["completion"] += usage.get("completion", 0)
+        inner_usage["usage"]["total"] += usage.get("total", 0)
+        return inner_artifact, inner_result, inner_usage
 
     print(f"[ESCALATED] {artifact_id} sau {max_retries} lan van fail -- can nguoi xem lai")
-    return artifact, result
+    return artifact, result, {"elapsed_seconds": elapsed, "usage": usage}
+
+
+def _load_baseline(log_path: Path):
+    """Load existing baseline JSON or return the empty template."""
+    if not log_path.exists():
+        return {"opencode_go": {"runs": [], "avg_elapsed_seconds": 0.0, "pass_rate_first_attempt": 0.0}, "local_cx": None}
+    data = json.loads(log_path.read_text(encoding="utf-8"))
+    if isinstance(data, list):
+        # Legacy list format: convert to new keyed format.
+        converted = {"opencode_go": {"runs": [], "avg_elapsed_seconds": 0.0, "pass_rate_first_attempt": 0.0}, "local_cx": None}
+        for entry in data:
+            prov = entry.get("provider", "opencode_go")
+            converted.setdefault(prov, {"runs": [], "avg_elapsed_seconds": 0.0, "pass_rate_first_attempt": 0.0})
+            converted[prov]["runs"].append(entry)
+        return converted
+    return data
+
+
+def _save_baseline(log_path: Path, data: dict):
+    """Persist baseline and recompute aggregate stats."""
+    for prov, section in data.items():
+        if section is None or not section.get("runs"):
+            continue
+        runs = section["runs"]
+        section["avg_elapsed_seconds"] = round(
+            sum(r["elapsed_seconds"] for r in runs) / len(runs), 2
+        )
+        first_attempts = [r for r in runs if r["retries"] == 0]
+        section["pass_rate_first_attempt"] = round(
+            len(first_attempts) / len(runs), 2
+        )
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def run_lit_review_with_baseline(
@@ -118,45 +191,29 @@ def run_lit_review_with_baseline(
 ) -> dict:
     """Run the pipeline and record token/time baseline metrics.
 
-    Returns a dictionary suitable for appending to logs/phase1_baseline.json.
+    Returns the run entry appended to logs/phase1_baseline.json.
     """
-    ws = Workspace(workspace_root)
-    ws.ensure_initialized()
-
-    start = time.time()
-    artifact, result = run_lit_review_pipeline(
+    provider = provider or os.environ.get("HERMES_LLM_PROVIDER", "opencode_go")
+    artifact, result, metrics = run_lit_review_pipeline(
         workspace_root, research_question, task_id, artifact_id, rubric,
         provider=provider, attempt=1, max_retries=max_retries,
     )
-    elapsed = round(time.time() - start, 2)
-
-    # CrewAI usage metrics are version-dependent; capture if available.
-    try:
-        from hermes.agents.researcher import build_researcher_agent
-        agent = build_researcher_agent()
-        usage = agent.llm.additional_params if hasattr(agent.llm, "additional_params") else {}
-    except Exception:
-        usage = {}
 
     baseline = {
         "run_id": run_id,
-        "provider": provider or os.environ.get("HERMES_LLM_PROVIDER", "opencode_go"),
-        "research_question": research_question,
-        "artifact_id": artifact_id,
-        "attempts": artifact["version"],
-        "final_status": "pass" if result["passed"] else "escalated",
-        "score": result["score"],
-        "elapsed_seconds": elapsed,
-        "total_tokens": usage.get("total_tokens", 0),
+        "question": research_question,
+        "elapsed_seconds": metrics["elapsed_seconds"],
+        "retries": artifact["version"] - 1,
+        "status": "pass" if result["passed"] else "escalated",
+        "tokens": metrics["usage"],
     }
 
+    ws = Workspace(workspace_root)
+    ws.ensure_initialized()
     log_path = ws.log_dir / "phase1_baseline.json"
-    existing = []
-    if log_path.exists():
-        existing = json.loads(log_path.read_text(encoding="utf-8"))
-        if not isinstance(existing, list):
-            existing = [existing]
-    existing.append(baseline)
-    log_path.write_text(json.dumps(existing, indent=2, ensure_ascii=False), encoding="utf-8")
+    data = _load_baseline(log_path)
+    data.setdefault(provider, {"runs": [], "avg_elapsed_seconds": 0.0, "pass_rate_first_attempt": 0.0})
+    data[provider]["runs"].append(baseline)
+    _save_baseline(log_path, data)
 
     return baseline

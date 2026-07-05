@@ -1,0 +1,38 @@
+{
+  "A1-run1_v1": {
+    "artifact_id": "A1-run1",
+    "produced_by_task": "T1-run1",
+    "type": "lit_review_md",
+    "version": 1,
+    "content_ref": ".hermes/artifacts/A1-run1_v1.md",
+    "metadata": {},
+    "verification_status": "pass",
+    "verification_notes": "{\"citation_completeness\": 1.0, \"relevance_summary\": 1.0, \"gaps_section\": 1.0, \"formatting_clarity\": 1.0}",
+    "parent_artifact_id": null,
+    "created_at": "2026-07-05T05:53:35.010462+00:00"
+  },
+  "A1-run2_v1": {
+    "artifact_id": "A1-run2",
+    "produced_by_task": "T1-run2",
+    "type": "lit_review_md",
+    "version": 1,
+    "content_ref": ".hermes/artifacts/A1-run2_v1.md",
+    "metadata": {},
+    "verification_status": "pass",
+    "verification_notes": "{\"citation_completeness\": 1.0, \"relevance_summary\": 1.0, \"gaps_section\": 1.0, \"formatting_clarity\": 1.0}",
+    "parent_artifact_id": null,
+    "created_at": "2026-07-05T05:54:41.149266+00:00"
+  },
+  "A1-run3_v1": {
+    "artifact_id": "A1-run3",
+    "produced_by_task": "T1-run3",
+    "type": "lit_review_md",
+    "version": 1,
+    "content_ref": ".hermes/artifacts/A1-run3_v1.md",
+    "metadata": {},
+    "verification_status": "pass",
+    "verification_notes": "{\"citation_completeness\": 1.0, \"relevance_summary\": 1.0, \"gaps_section\": 1.0, \"formatting_clarity\": 1.0}",
+    "parent_artifact_id": null,
+    "created_at": "2026-07-05T05:55:35.367064+00:00"
+  }
+}

@@ -50,12 +50,13 @@ def build_lit_review_task(agent, research_question: str, output_path: str):
     """Return a CrewAI Task asking the agent to produce a lit review."""
     return Task(
         description=(
-            f"Viet mot ban tong hop tai lieu (literature review) tra loi cau hoi: "
-            f"'{research_question}'. Yeu cau: co phan Summary, co Citations "
-            f"(it nhat 3 nguon, dinh dang APA), va co phan 'Gaps Identified'."
+            f"Viet mot ban tong quan tai lieu (literature review) tra loi cau hoi: "
+            f"'{research_question}'. Yeu cau BAT BUOC: phai co phan '# Summary', "
+            f"phai co phan '# Citations' voi it nhat 3 nguon trich dan dinh dang APA, "
+            f"va phan '# Gaps Identified'."
         ),
         expected_output=(
-            "Van ban Markdown co it nhat 3 phan: Summary, Citations, Gaps Identified"
+            "Van ban Markdown day du 3 phan: # Summary, # Citations, # Gaps Identified"
         ),
         agent=agent,
         output_file=output_path,
