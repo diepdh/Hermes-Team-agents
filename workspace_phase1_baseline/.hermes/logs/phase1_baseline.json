@@ -36,10 +36,46 @@
           "completion": 0,
           "total": 0
         }
+      },
+      {
+        "run_id": "run-1",
+        "question": "Cac phuong phap danh gia nang luc tu hoc cua sinh vien dai hoc la gi?",
+        "elapsed_seconds": 18.8,
+        "retries": 1,
+        "status": "pass",
+        "tokens": {
+          "prompt": 0,
+          "completion": 0,
+          "total": 0
+        }
+      },
+      {
+        "run_id": "run-2",
+        "question": "Tac dong cua phan hoi tuc thoi (immediate feedback) den ket qua hoc tap?",
+        "elapsed_seconds": 16.66,
+        "retries": 1,
+        "status": "pass",
+        "tokens": {
+          "prompt": 0,
+          "completion": 0,
+          "total": 0
+        }
+      },
+      {
+        "run_id": "run-3",
+        "question": "So sanh mo hinh lop hoc dao nguoc (flipped classroom) voi mo hinh truyen thong?",
+        "elapsed_seconds": 14.39,
+        "retries": 1,
+        "status": "pass",
+        "tokens": {
+          "prompt": 0,
+          "completion": 0,
+          "total": 0
+        }
       }
     ],
-    "avg_elapsed_seconds": 46.89,
-    "pass_rate_first_attempt": 1.0
+    "avg_elapsed_seconds": 31.75,
+    "pass_rate_first_attempt": 0.5
   },
   "local_cx": null
 }
