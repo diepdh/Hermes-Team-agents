@@ -10,11 +10,11 @@ môi trường HERMES_WORKSPACE.
 
 import argparse
 
-from core.workspace import Workspace
-from core.validator import validate_task, validate_artifact
-from core.state_machine import transition
-from core.storage import save_artifact, update_verification
-from core.task_index import save_task
+from hermes.core.workspace import Workspace
+from hermes.core.validator import validate_task, validate_artifact
+from hermes.core.state_machine import transition
+from hermes.core.storage import save_artifact, update_verification
+from hermes.core.task_index import save_task
 
 
 def main(workspace_path: str | None = None):

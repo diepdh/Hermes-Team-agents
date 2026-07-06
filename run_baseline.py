@@ -1,7 +1,7 @@
 """Run Phase 1 baseline with opencode_go and persist metrics."""
 import json
 from pathlib import Path
-from pipeline.lit_review_pipeline import run_lit_review_with_baseline
+from hermes.pipeline.lit_review_pipeline import run_lit_review_with_baseline
 
 questions = [
     "Cac phuong phap danh gia nang luc tu hoc cua sinh vien dai hoc la gi?",

@@ -28,8 +28,9 @@ def cmd_init(args):
 
 def _find_verification_record(ws: Workspace, artifact_id: str, version: int) -> dict | None:
     """Scan artifacts/ for the matching verification record."""
-    idx = ws.artifact_index
-    for entry in idx.values():
+    from hermes.core.storage import list_artifacts
+    idx = list_artifacts(ws)
+    for key, entry in idx.items():
         if entry.get("artifact_id") == artifact_id and entry.get("version") == version:
             return entry
     return None

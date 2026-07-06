@@ -1,0 +1,27 @@
+{
+  "rubric_id": "R-lecture-draft-v1",
+  "name": "Lecture Draft Rubric",
+  "pass_threshold": 0.8,
+  "criteria": [
+    {
+      "name": "covers_all_outline_sections",
+      "weight": 0.35,
+      "check": "Mọi mục trong outline đều được viết"
+    },
+    {
+      "name": "examples_included",
+      "weight": 0.25,
+      "check": "Có ít nhất 1 ví dụ minh họa mỗi section"
+    },
+    {
+      "name": "length_adequate",
+      "weight": 0.2,
+      "check": "Trên 500 từ cho 1 buổi học"
+    },
+    {
+      "name": "no_unsupported_claims",
+      "weight": 0.2,
+      "check": "Không có số liệu hoặc claim thiếu nguồn rõ ràng"
+    }
+  ]
+}

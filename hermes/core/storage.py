@@ -79,7 +79,7 @@ def update_verification(
     notes: str = "",
 ) -> None:
     """Cập nhật trạng thái verification của artifact."""
-    if status not in ("pending", "pass", "fail"):
+    if status not in ("pending", "pass", "fail", "escalated"):
         raise ValueError(f"Trạng thái verification không hợp lệ: {status}")
 
     workspace.ensure_initialized()

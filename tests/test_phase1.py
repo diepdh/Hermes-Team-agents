@@ -12,9 +12,9 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.workspace import Workspace
-from core.verifier import check_lit_review
-from pipeline.lit_review_pipeline import run_lit_review_pipeline
+from hermes.core.workspace import Workspace
+from hermes.core.verifier import check_lit_review
+from hermes.pipeline.lit_review_pipeline import run_lit_review_pipeline
 
 
 SAMPLE_RUBRIC = {
@@ -92,7 +92,7 @@ def test_pipeline_mocked_kickoff_passes_first_attempt(tmp_path):
             f.write(good_content)
         return None
 
-    with patch("pipeline.lit_review_pipeline.Crew.kickoff", fake_kickoff):
+    with patch("hermes.pipeline.lit_review_pipeline.Crew.kickoff", fake_kickoff):
         artifact, result, metrics = run_lit_review_pipeline(
             workspace_root=str(tmp_path),
             research_question="What is spaced practice?",
@@ -131,7 +131,7 @@ def test_pipeline_retry_then_pass(tmp_path):
             f.write(outputs.pop(0))
         return None
 
-    with patch("pipeline.lit_review_pipeline.Crew.kickoff", fake_kickoff):
+    with patch("hermes.pipeline.lit_review_pipeline.Crew.kickoff", fake_kickoff):
         artifact, result, metrics = run_lit_review_pipeline(
             workspace_root=str(tmp_path),
             research_question="What is retrieval practice?",
@@ -158,7 +158,7 @@ def test_pipeline_escalates_after_max_retries(tmp_path):
             f.write(bad_content)
         return None
 
-    with patch("pipeline.lit_review_pipeline.Crew.kickoff", fake_kickoff):
+    with patch("hermes.pipeline.lit_review_pipeline.Crew.kickoff", fake_kickoff):
         artifact, result, metrics = run_lit_review_pipeline(
             workspace_root=str(tmp_path),
             research_question="What is metacognition?",
@@ -177,7 +177,7 @@ def test_pipeline_escalates_after_max_retries(tmp_path):
 
 def test_llm_config_registry():
     """Verify the LLM config registry loads correct credentials per provider."""
-    from core.llm_config import list_providers, get_llm_config
+    from hermes.core.llm_config import list_providers, get_llm_config
 
     providers = list_providers()
     assert "opencode_go" in providers

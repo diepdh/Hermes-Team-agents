@@ -14,11 +14,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.workspace import Workspace
-from core.validator import validate_task, validate_artifact, validate_rubric
-from core.state_machine import transition, can_transition
-from core.storage import save_artifact, get_artifact, update_verification, read_artifact_content
-from core.task_index import save_task, get_task
+from hermes.core.workspace import Workspace
+from hermes.core.validator import validate_task, validate_artifact, validate_rubric
+from hermes.core.state_machine import transition, can_transition
+from hermes.core.storage import save_artifact, get_artifact, update_verification, read_artifact_content
+from hermes.core.task_index import save_task, get_task
 
 
 def _sample_task():

@@ -1,0 +1,27 @@
+{
+  "rubric_id": "R-course-outline-v1",
+  "name": "Course Outline Rubric",
+  "pass_threshold": 0.75,
+  "criteria": [
+    {
+      "name": "learning_objectives_present",
+      "weight": 0.3,
+      "check": "Có mục Learning Objectives rõ ràng"
+    },
+    {
+      "name": "session_breakdown",
+      "weight": 0.3,
+      "check": "Chia theo buổi/tuần cụ thể"
+    },
+    {
+      "name": "aligned_with_lit_review",
+      "weight": 0.2,
+      "check": "Nội dung outline bám sát input lit review"
+    },
+    {
+      "name": "assessment_hooks",
+      "weight": 0.2,
+      "check": "Có chỉ ra điểm sẽ đánh giá (assessment points)"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "rubric_id": "R-quiz-bank-v1",
+  "name": "Quiz Bank Rubric",
+  "pass_threshold": 0.8,
+  "criteria": [
+    {
+      "name": "question_count",
+      "weight": 0.3,
+      "check": "Có ít nhất 5 câu hỏi"
+    },
+    {
+      "name": "covers_lecture_topics",
+      "weight": 0.3,
+      "check": "Câu hỏi bám sát nội dung lecture_draft"
+    },
+    {
+      "name": "has_answer_key",
+      "weight": 0.25,
+      "check": "Có đáp án đúng cho mỗi câu"
+    },
+    {
+      "name": "difficulty_variety",
+      "weight": 0.15,
+      "check": "Có ít nhất 2 mức độ khó khác nhau"
+    }
+  ]
+}
