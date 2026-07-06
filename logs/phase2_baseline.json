@@ -1,0 +1,117 @@
+{
+  "runs": [
+    {
+      "run_id": "p2-run-1",
+      "research_question": "Các phương pháp đánh giá năng lực tự học của sinh viên đại học là gì?",
+      "elapsed_seconds": 147.9,
+      "summary": {
+        "status": "escalated",
+        "failed_stage": "lecture_draft",
+        "stages": [
+          {
+            "stage": "lit_review_md",
+            "artifact_id": "lecture-lit",
+            "version": 3,
+            "passed": true,
+            "score": 1.0,
+            "elapsed_seconds": 31.62
+          },
+          {
+            "stage": "course_outline",
+            "artifact_id": "lecture-outline",
+            "version": 1,
+            "passed": true,
+            "score": 1.0,
+            "elapsed_seconds": 31.08
+          },
+          {
+            "stage": "lecture_draft",
+            "artifact_id": "lecture-lecture",
+            "version": 1,
+            "passed": true,
+            "score": 1.0,
+            "elapsed_seconds": 82.44,
+            "escalated": true
+          }
+        ],
+        "total_elapsed_seconds": 147.89
+      }
+    },
+    {
+      "run_id": "p2-run-2",
+      "research_question": "Tác động của phản hồi tức thời (immediate feedback) đến kết quả học tập?",
+      "elapsed_seconds": 80.6,
+      "summary": {
+        "status": "escalated",
+        "failed_stage": "lecture_draft",
+        "stages": [
+          {
+            "stage": "lit_review_md",
+            "artifact_id": "lecture-lit",
+            "version": 4,
+            "passed": true,
+            "score": 1.0,
+            "elapsed_seconds": 18.88
+          },
+          {
+            "stage": "course_outline",
+            "artifact_id": "lecture-outline",
+            "version": 1,
+            "passed": true,
+            "score": 1.0,
+            "elapsed_seconds": 30.95
+          },
+          {
+            "stage": "lecture_draft",
+            "artifact_id": "lecture-lecture",
+            "version": 1,
+            "passed": true,
+            "score": 1.0,
+            "elapsed_seconds": 30.61,
+            "escalated": true
+          }
+        ],
+        "total_elapsed_seconds": 80.57
+      }
+    },
+    {
+      "run_id": "p2-run-3",
+      "research_question": "So sánh mô hình lớp học đảo ngược (flipped classroom) với mô hình truyền thống?",
+      "elapsed_seconds": 230.9,
+      "summary": {
+        "status": "escalated",
+        "failed_stage": "lecture_draft",
+        "stages": [
+          {
+            "stage": "lit_review_md",
+            "artifact_id": "lecture-lit",
+            "version": 3,
+            "passed": true,
+            "score": 1.0,
+            "elapsed_seconds": 26.66
+          },
+          {
+            "stage": "course_outline",
+            "artifact_id": "lecture-outline",
+            "version": 1,
+            "passed": true,
+            "score": 1.0,
+            "elapsed_seconds": 59.37
+          },
+          {
+            "stage": "lecture_draft",
+            "artifact_id": "lecture-lecture",
+            "version": 2,
+            "passed": true,
+            "score": 1.0,
+            "elapsed_seconds": 144.68,
+            "escalated": true
+          }
+        ],
+        "total_elapsed_seconds": 230.9
+      }
+    }
+  ],
+  "avg_elapsed_seconds": 153.1,
+  "timestamp": "2026-07-06T05:01:36.272240+00:00"
+}
