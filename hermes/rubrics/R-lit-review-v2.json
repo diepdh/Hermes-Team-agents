@@ -1,0 +1,11 @@
+{
+  "rubric_id": "R-lit-review-v2",
+  "name": "Literature Review Rubric",
+  "pass_threshold": 0.7,
+  "criteria": [
+    {"name": "citation_completeness", "weight": 0.35, "check": "At least 3 APA-style citations"},
+    {"name": "relevance", "weight": 0.25, "check": "Contains a Summary section addressing the research question"},
+    {"name": "gap_identification", "weight": 0.25, "check": "Contains a Gaps Identified section"},
+    {"name": "clarity", "weight": 0.15, "check": "Clear structure with >100 words"}
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Hermes Task Schema",
+  "description": "Schema for a Task unit in the Hermes Engineering OS workflow.",
+  "type": "object",
+  "required": [
+    "task_id",
+    "type",
+    "assigned_subagent",
+    "input_refs",
+    "instructions",
+    "output_schema",
+    "verification",
+    "status"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "pattern": "^T-\\d{8}-\\d+$",
+      "description": "Unique task identifier, e.g. T-20260705-001"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "literature_review",
+        "curriculum_outline",
+        "content_draft",
+        "quiz_gen",
+        "verification",
+        "editing",
+        "debate_review"
+      ],
+      "description": "Task classification"
+    },
+    "assigned_subagent": {
+      "type": "string",
+      "enum": [
+        "researcher",
+        "curriculum_designer",
+        "content_writer",
+        "assessment_builder",
+        "verifier",
+        "editor"
+      ],
+      "description": "Subagent responsible for executing the task"
+    },
+    "input_refs": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Artifact references used as input"
+    },
+    "instructions": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Concrete instructions for the subagent"
+    },
+    "output_schema": {
+      "type": "object",
+      "required": ["artifact_type", "required_fields"],
+      "properties": {
+        "artifact_type": { "type": "string" },
+        "required_fields": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "required": ["method"],
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": ["rubric", "llm_judge", "human_gate", "none"]
+        },
+        "rubric_id": { "type": "string" },
+        "min_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "in_progress", "verified", "rejected", "escalated"],
+      "description": "Current state of the task"
+    },
+    "retry_count": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0
+    },
+    "max_retries": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 2
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}
