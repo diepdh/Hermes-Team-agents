@@ -108,7 +108,22 @@ def finalize_verification(
         rubric_pass = rubric_result["passed"]
 
     # ── Determine status ─────────────────────────────────────────────
-    if not rubric_pass:
+    # Special handling: debate_verdict artifact verified on its own
+    # (not passed as debate_verdict parameter to finalize_verification).
+    # The final_decision field from the checker overrides rubric score.
+    verdict_decision = rubric_result.get("final_decision", "")
+    if artifact_type == "debate_verdict" and debate_verdict is None and verdict_decision:
+        if verdict_decision == "no_consensus":
+            status = "escalated"
+        elif verdict_decision == "consensus_fail":
+            status = "fail"  # academic rejection — no retry
+        else:
+            # consensus_pass — fall through to normal rubric scoring
+            if not rubric_pass:
+                status = "fail"
+            else:
+                status = "pass"
+    elif not rubric_pass:
         status = "fail"
     elif debate_verdict is not None:
         decision = debate_verdict.get("final_decision", "no_consensus")
@@ -344,13 +359,13 @@ def check_debate_verdict(content: str, rubric: dict) -> dict:
         )
         scores["arguments_present"] = 1.0 if all_have_args and len(rounds) > 0 else 0.0
 
-    return _build_result(scores, rubric)
+    return _build_result(scores, rubric, extra={"final_decision": verdict.get("final_decision", "")})
 
 
 # -------------------------------------------------------------------
 # Shared result builder
 # -------------------------------------------------------------------
-def _build_result(scores: Dict[str, float], rubric: dict) -> dict:
+def _build_result(scores: Dict[str, float], rubric: dict, extra: dict | None = None) -> dict:
     """Compute weighted total and build the standard result dict."""
     weighted_total = sum(
         scores.get(c["name"], 0.0) * c["weight"]
@@ -359,8 +374,11 @@ def _build_result(scores: Dict[str, float], rubric: dict) -> dict:
     threshold = rubric.get("pass_threshold", 0.7)
     passed = weighted_total >= threshold
 
-    return {
+    result = {
         "passed": passed,
         "score": round(weighted_total, 3),
         "detail": scores,
     }
+    if extra:
+        result.update(extra)
+    return result

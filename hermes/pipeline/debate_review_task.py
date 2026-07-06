@@ -163,6 +163,14 @@ def run_debate_review(
         build_opponent_argument_task,
     )
 
+    # Guard: never debate a debate_verdict itself (prevents recursion)
+    from hermes.core.risk import SKIP_DEBATE_TYPES
+    if artifact_type in SKIP_DEBATE_TYPES:
+        return build_verdict(
+            artifact_id, artifact_version, artifact_type, [],
+            "consensus_pass",
+        )
+
     workpath = Path(workdir) if workdir else Path(".")
 
     rounds: list[dict] = []

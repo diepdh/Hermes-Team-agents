@@ -23,7 +23,28 @@ from hermes.core.verifier import (
     CHECKER_REGISTRY,
 )
 from hermes.core.workspace import Workspace
-from hermes.core.risk import get_risk_level
+from hermes.core.risk import get_risk_level, should_trigger_debate
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Test: debate_verdict does not trigger another debate (recursion guard)
+# ─────────────────────────────────────────────────────────────────────
+def test_debate_verdict_does_not_trigger_another_debate():
+    """debate_verdict must not trigger another debate (prevents recursion)."""
+    # should_trigger_debate returns False for debate_verdict
+    assert should_trigger_debate("debate_verdict") is False
+
+    # run_debate_review called with debate_verdict returns immediately
+    verdict = run_debate_review(
+        artifact_content="any",
+        artifact_id="A-guard",
+        artifact_version=1,
+        artifact_type="debate_verdict",
+        max_rounds=3,
+        workdir="/tmp",
+    )
+    assert verdict["final_decision"] == "consensus_pass"
+    assert verdict["rounds"] == []  # No LLM calls made
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -361,3 +382,107 @@ def test_run_debate_review_output_valid_schema():
     assert verdict["final_decision"] in ("consensus_pass", "consensus_fail", "no_consensus")
     assert "rounds" in verdict
     assert "unresolved_issues" in verdict
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Test: pipeline triggers debate for high-risk artifact end-to-end
+# ─────────────────────────────────────────────────────────────────────
+def test_pipeline_triggers_debate_for_high_risk_artifact_end_to_end(tmp_path):
+    """When a high-risk artifact passes rubric, the pipeline must
+    automatically call run_debate_review() before returning."""
+    from unittest import mock
+    from hermes.core.workspace import Workspace
+    from hermes.pipeline.full_lecture_pipeline import run_stage
+
+    ws = Workspace(str(tmp_path))
+    ws.ensure_initialized()
+
+    rubric = {"pass_threshold": 0.80, "criteria": []}
+
+    mock_debate_verdict = {
+        "final_decision": "consensus_pass",
+        "rounds": [{"round": 1, "proponent_argument": "Good.", "opponent_argument": "No errors."}],
+    }
+
+    fake_artifact = {
+        "artifact_id": "pipeline-debate-test",
+        "version": 1,
+        "type": "lecture_draft",
+        "content_ref": ".hermes/artifacts/pipeline-debate-test_v1.md",
+        "produced_by_task": "T-20260706-001",
+        "verification_status": "pending",
+        "verification_notes": "",
+    }
+
+    with mock.patch("hermes.pipeline.full_lecture_pipeline.Crew") as mock_crew_class:
+        mock_crew_class.return_value = mock.MagicMock()
+        # Mock content file read
+        with mock.patch("pathlib.Path.read_text", return_value="x " * 400):
+            # Mock save_artifact to avoid JSON decode issues on index.json
+            with mock.patch(
+                "hermes.pipeline.full_lecture_pipeline.save_artifact",
+                return_value=fake_artifact,
+            ):
+                # Mock verify_artifact to return pass
+                with mock.patch(
+                    "hermes.pipeline.full_lecture_pipeline.verify_artifact",
+                    return_value={"passed": True, "score": 0.95, "detail": {}},
+                ):
+                    # Mock run_debate_review to track calls
+                    with mock.patch(
+                        "hermes.pipeline.full_lecture_pipeline.run_debate_review",
+                        return_value=mock_debate_verdict,
+                    ) as mock_debate:
+                        with mock.patch(
+                            "hermes.pipeline.full_lecture_pipeline.finalize_verification",
+                            return_value="escalated",
+                        ):
+                            def fake_agent_builder(provider=None):
+                                return mock.MagicMock()
+                            def fake_task_builder(agent, output_path=None):
+                                return mock.MagicMock()
+
+                            stage_result = run_stage(
+                                workspace=ws,
+                                agent_builder=fake_agent_builder,
+                                task_builder=fake_task_builder,
+                                artifact_type="lecture_draft",
+                                rubric=rubric,
+                                produced_by_task="pipeline-debate-test",
+                                provider=None,
+                                max_retries=0,
+                            )
+
+    # Assertions
+    mock_debate.assert_called_once()
+    call_args = mock_debate.call_args[1]
+    assert call_args["artifact_id"] == "pipeline-debate-test"
+    assert call_args["artifact_type"] == "lecture_draft"
+    assert stage_result["escalated"] is True
+    assert stage_result["stage"] == "lecture_draft"
+
+
+def test_pipeline_skips_debate_for_low_risk_artifact(tmp_path):
+    """Low-risk artifacts (e.g., lit_review_md) should NOT trigger debate."""
+    from unittest import mock
+    from hermes.core.workspace import Workspace
+    from hermes.pipeline.full_lecture_pipeline import run_stage
+
+    ws = Workspace(str(tmp_path))
+    ws.ensure_initialized()
+
+    rubric = {"pass_threshold": 0.70, "criteria": []}
+    fake_artifact = {"artifact_id": "low", "version": 1, "content_ref": "x"}
+
+    with mock.patch("hermes.pipeline.full_lecture_pipeline.Crew") as mock_crew:
+        mock_crew.return_value = mock.MagicMock()
+        with mock.patch("pathlib.Path.read_text", return_value="x " * 200):
+            with mock.patch("hermes.pipeline.full_lecture_pipeline.save_artifact", return_value=fake_artifact):
+                with mock.patch("hermes.pipeline.full_lecture_pipeline.verify_artifact",
+                                return_value={"passed": True, "score": 0.90, "detail": {}}):
+                    with mock.patch("hermes.pipeline.full_lecture_pipeline.run_debate_review") as mock_debate:
+                        with mock.patch("hermes.pipeline.full_lecture_pipeline.finalize_verification", return_value="pass"):
+                            run_stage(ws, lambda p=None: mock.MagicMock(), lambda a, **kw: mock.MagicMock(),
+                                      "lit_review_md", rubric, "low", None, max_retries=0)
+
+    mock_debate.assert_not_called()

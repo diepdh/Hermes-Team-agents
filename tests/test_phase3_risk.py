@@ -11,10 +11,12 @@ import pytest
 from hermes.core.risk import (
     RISK_MATRIX,
     RISK_ADJUSTED_FLOOR,
+    SKIP_DEBATE_TYPES,
     get_risk_level,
     get_effective_threshold,
+    should_trigger_debate,
 )
-from hermes.core.verifier import finalize_verification, HUMAN_GATE_TYPES
+from hermes.core.verifier import finalize_verification, verify_artifact, HUMAN_GATE_TYPES
 from hermes.core.workspace import Workspace
 
 
@@ -188,3 +190,145 @@ def test_risk_matrix_keys_match_risk_adjusted_floor_keys():
         assert level in RISK_ADJUSTED_FLOOR, (
             f"Risk level '{level}' for {artifact_type} not found in RISK_ADJUSTED_FLOOR"
         )
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Guard tests: debate_verdict must NOT trigger another debate
+# ─────────────────────────────────────────────────────────────────────
+def test_debate_verdict_does_not_trigger_another_debate():
+    """debate_verdict is in SKIP_DEBATE_TYPES → should_trigger_debate = False."""
+    assert "debate_verdict" in SKIP_DEBATE_TYPES
+    assert should_trigger_debate("debate_verdict") is False
+
+
+def test_should_trigger_debate_true_for_high_critical():
+    """High and critical risk types (except skip list) should trigger debate."""
+    assert should_trigger_debate("lecture_draft") is True
+    assert should_trigger_debate("quiz_bank") is True
+
+
+def test_should_trigger_debate_false_for_low_medium():
+    """Low and medium risk types should NOT trigger debate."""
+    assert should_trigger_debate("lit_review_md") is False
+    assert should_trigger_debate("course_outline") is False
+    assert should_trigger_debate("final_content") is False
+
+
+def test_run_debate_review_skips_debate_verdict():
+    """run_debate_review with artifact_type='debate_verdict' returns immediately."""
+    from hermes.pipeline.debate_review_task import run_debate_review
+
+    verdict = run_debate_review(
+        artifact_content="any content",
+        artifact_id="A-recursion-test",
+        artifact_version=1,
+        artifact_type="debate_verdict",
+        max_rounds=3,
+        workdir="/tmp",
+    )
+
+    assert verdict["final_decision"] == "consensus_pass"
+    assert verdict["rounds"] == []
+    assert verdict["artifact_type"] == "debate_verdict"
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Standalone debate_verdict verification tests (bug fix from round 2)
+# ─────────────────────────────────────────────────────────────────────
+def test_debate_verdict_standalone_no_consensus_maps_to_escalated(tmp_path):
+    """When a debate_verdict with no_consensus is verified standalone,
+    status must be 'escalated', NOT 'fail'."""
+    import json
+    ws = Workspace(str(tmp_path))
+    ws.ensure_initialized()
+
+    from hermes.core.storage import save_artifact
+    save_artifact(ws, "dv-no-consensus", "x", "debate_verdict", "T-20260706-001")
+    artifact = save_artifact(ws, "dv-no-consensus", "x2", "debate_verdict", "T-20260706-001")
+
+    verdict_json = json.dumps({
+        "final_decision": "no_consensus",
+        "rounds": [{"round": 1, "proponent_argument": "Good.", "opponent_argument": "Has errors."}],
+        "unresolved_issues": ["No consensus after 1 round"],
+    })
+    result = verify_artifact("debate_verdict", verdict_json, {
+        "pass_threshold": 0.9,
+        "criteria": [
+            {"name": "consensus_reached", "weight": 0.5, "check": ""},
+            {"name": "rounds_completed", "weight": 0.25, "check": ""},
+            {"name": "arguments_present", "weight": 0.25, "check": ""},
+        ],
+    })
+    # Without fix: score=0.5 < 0.9 → fail. With fix: no_consensus → escalated
+    status = finalize_verification(
+        ws, artifact["artifact_id"], artifact["version"], "debate_verdict",
+        result, notes="test no_consensus",
+        rubric_pass_threshold=0.9,
+    )
+    assert status == "escalated", f"no_consensus must → 'escalated', got '{status}'"
+
+
+def test_debate_verdict_standalone_consensus_fail_maps_to_fail(tmp_path):
+    """consensus_fail → 'fail' (not retried — academic rejection)."""
+    import json
+    ws = Workspace(str(tmp_path))
+    ws.ensure_initialized()
+
+    from hermes.core.storage import save_artifact
+    save_artifact(ws, "dv-consensus-fail", "x", "debate_verdict", "T-20260706-001")
+    artifact = save_artifact(ws, "dv-consensus-fail", "x2", "debate_verdict", "T-20260706-001")
+
+    verdict_json = json.dumps({
+        "final_decision": "consensus_fail",
+        "rounds": [{"round": 1, "proponent_argument": "Cannot defend.", "opponent_argument": "Major errors found."}],
+    })
+    result = verify_artifact("debate_verdict", verdict_json, {
+        "pass_threshold": 0.9,
+        "criteria": [
+            {"name": "consensus_reached", "weight": 0.5, "check": ""},
+            {"name": "rounds_completed", "weight": 0.25, "check": ""},
+            {"name": "arguments_present", "weight": 0.25, "check": ""},
+        ],
+    })
+    status = finalize_verification(
+        ws, artifact["artifact_id"], artifact["version"], "debate_verdict",
+        result, notes="test consensus_fail",
+        rubric_pass_threshold=0.9,
+    )
+    assert status == "fail", f"consensus_fail must → 'fail', got '{status}'"
+
+
+def test_debate_verdict_standalone_consensus_pass_uses_normal_rubric(tmp_path):
+    """consensus_pass with complete rounds/arguments → normal rubric scoring.
+    debate_verdict is NOT in HUMAN_GATE_TYPES, so it passes through."""
+    import json
+    ws = Workspace(str(tmp_path))
+    ws.ensure_initialized()
+
+    from hermes.core.storage import save_artifact
+    save_artifact(ws, "dv-consensus-pass", "x", "debate_verdict", "T-20260706-001")
+    artifact = save_artifact(ws, "dv-consensus-pass", "x2", "debate_verdict", "T-20260706-001")
+
+    verdict_json = json.dumps({
+        "final_decision": "consensus_pass",
+        "rounds": [{"round": 1, "proponent_argument": "Solid defense.", "opponent_argument": "I agree — no errors."}],
+    })
+    result = verify_artifact("debate_verdict", verdict_json, {
+        "pass_threshold": 0.9,
+        "criteria": [
+            {"name": "consensus_reached", "weight": 0.5, "check": ""},
+            {"name": "rounds_completed", "weight": 0.25, "check": ""},
+            {"name": "arguments_present", "weight": 0.25, "check": ""},
+        ],
+    })
+    # All criteria score 1.0 → weighted = 1.0, effective_threshold = 0.9 → pass
+    status = finalize_verification(
+        ws, artifact["artifact_id"], artifact["version"], "debate_verdict",
+        result, notes="test consensus_pass",
+        rubric_pass_threshold=0.9,
+    )
+    # debate_verdict NOT in HUMAN_GATE_TYPES → should pass
+    assert status == "pass", (
+        f"consensus_pass with full arguments must → 'pass', got '{status}'. "
+        f"debate_verdict is NOT in HUMAN_GATE_TYPES: {HUMAN_GATE_TYPES}"
+    )

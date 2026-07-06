@@ -38,6 +38,67 @@ from hermes.agents.editor import build_editor_agent, build_edit_task
 from hermes.core.workspace import Workspace
 from hermes.core.storage import save_artifact, read_artifact_content
 from hermes.core.verifier import verify_artifact, finalize_verification
+from hermes.core.risk import should_trigger_debate, get_risk_level
+from hermes.pipeline.debate_review_task import run_debate_review
+
+
+def _maybe_run_debate(
+    workspace: Workspace,
+    artifact: dict,
+    artifact_type: str,
+    content: str,
+    result: dict,
+    rubric: dict,
+    provider: str | None,
+    notes: str,
+) -> str:
+    """Run debate review if risk triggers it, then re-finalize.
+
+    Returns the new verification status.  If debate is not triggered,
+    returns ``None``.
+    """
+    if not (should_trigger_debate(artifact_type) and result["passed"]):
+        return None
+
+    print(f"[DEBATE] Triggering debate for {artifact_type} v{artifact['version']} (risk={get_risk_level(artifact_type)})")
+    debate_verdict = run_debate_review(
+        artifact_content=content,
+        artifact_id=artifact["artifact_id"],
+        artifact_version=artifact["version"],
+        artifact_type=artifact_type,
+        provider=provider,
+        max_rounds=3,
+        workdir=str(workspace.artifact_dir),
+    )
+    # Persist debate_verdict to Artifact Store so human reviewers can
+    # see the full proponent/opponent arguments when approving escalated
+    # artifacts.  Versioned, never overwritten.
+    import json
+    verdict_artifact = save_artifact(
+        workspace=workspace,
+        artifact_id=f"{artifact['artifact_id']}-debate",
+        content=json.dumps(debate_verdict, ensure_ascii=False, indent=2),
+        artifact_type="debate_verdict",
+        produced_by_task=f"debate-{artifact['artifact_id']}",
+        metadata={
+            "target_artifact_id": artifact["artifact_id"],
+            "target_artifact_version": artifact["version"],
+            "target_artifact_type": artifact_type,
+        },
+    )
+    print(f"[DEBATE] Verdict saved as {verdict_artifact['artifact_id']}_v{verdict_artifact['version']}")
+    new_status = finalize_verification(
+        workspace,
+        artifact["artifact_id"],
+        artifact["version"],
+        artifact_type,
+        result,
+        notes=f"{notes} + debate",
+        rubric_pass_threshold=rubric.get("pass_threshold"),
+        debate_verdict=debate_verdict,
+    )
+    print(f"[DEBATE] Result: {debate_verdict['final_decision']} → status={new_status}")
+    return new_status
 
 
 def run_stage(
@@ -86,6 +147,14 @@ def run_stage(
         notes=f"attempt 1",
         rubric_pass_threshold=rubric.get("pass_threshold"),
     )
+
+    # ── Phase 3: Debate review for high/critical-risk artifacts ───────
+    debate_status = _maybe_run_debate(
+        workspace, artifact, artifact_type, content, result, rubric,
+        provider, notes="attempt 1",
+    )
+    if debate_status is not None:
+        status = debate_status
 
     if status == "escalated":
         print(f"[ESCALATED] {artifact_type} v{artifact['version']} -- score {result['score']} -- chờ người duyệt")
@@ -142,6 +211,14 @@ def run_stage(
             notes=f"attempt {attempt}",
             rubric_pass_threshold=rubric.get("pass_threshold"),
         )
+
+        # ── Debate for retry path too ──────────────────────────────
+        debate_status = _maybe_run_debate(
+            workspace, artifact, artifact_type, content, result, rubric,
+            provider, notes=f"attempt {attempt}",
+        )
+        if debate_status is not None:
+            status = debate_status
 
         if status != "fail":
             print(f"[{status.upper()}] {artifact_type} v{artifact['version']} (attempt {attempt}) -- score {result['score']}")
