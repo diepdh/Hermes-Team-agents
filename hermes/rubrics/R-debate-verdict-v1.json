@@ -1,0 +1,23 @@
+{
+  "rubric_id": "R-debate-verdict-v1",
+  "name": "Debate Verdict Rubric",
+  "description": "Evaluates whether debate_review reached a valid consensus",
+  "pass_threshold": 0.9,
+  "criteria": [
+    {
+      "name": "consensus_reached",
+      "weight": 0.5,
+      "check": "final_decision is consensus_pass or consensus_fail (not no_consensus)"
+    },
+    {
+      "name": "rounds_completed",
+      "weight": 0.25,
+      "check": "At least 1 round has proponent and opponent arguments"
+    },
+    {
+      "name": "arguments_present",
+      "weight": 0.25,
+      "check": "Proponent and opponent arguments are non-empty for all rounds"
+    }
+  ]
+}

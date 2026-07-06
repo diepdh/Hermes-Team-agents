@@ -31,7 +31,8 @@
         "lecture_draft",
         "quiz_bank",
         "verified_content",
-        "final_content"
+        "final_content",
+        "debate_verdict"
       ]
     },
     "version": {

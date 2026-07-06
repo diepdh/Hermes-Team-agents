@@ -84,6 +84,7 @@ def run_stage(
         artifact_type,
         result,
         notes=f"attempt 1",
+        rubric_pass_threshold=rubric.get("pass_threshold"),
     )
 
     if status == "escalated":
@@ -139,6 +140,7 @@ def run_stage(
             artifact_type,
             result,
             notes=f"attempt {attempt}",
+            rubric_pass_threshold=rubric.get("pass_threshold"),
         )
 
         if status != "fail":

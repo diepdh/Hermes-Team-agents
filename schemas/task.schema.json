@@ -40,7 +40,9 @@
         "content_writer",
         "assessment_builder",
         "verifier",
-        "editor"
+        "editor",
+        "debate_proponent",
+        "debate_opponent"
       ],
       "description": "Subagent responsible for executing the task"
     },
@@ -95,6 +97,12 @@
       "type": "integer",
       "minimum": 0,
       "default": 2
+    },
+    "max_rounds": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 3,
+      "description": "Max debate rounds for debate_review task type"
     },
     "created_at": {
       "type": "string",

@@ -17,6 +17,7 @@ _TYPE_TO_FILE = {
     "course_outline": "R-course-outline-v1.json",
     "lecture_draft": "R-lecture-draft-v1.json",
     "quiz_bank": "R-quiz-bank-v1.json",
+    "debate_verdict": "R-debate-verdict-v1.json",
 }
 
 

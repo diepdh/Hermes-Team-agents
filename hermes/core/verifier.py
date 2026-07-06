@@ -15,6 +15,7 @@ import re
 from typing import Dict, Any
 
 from .storage import update_verification
+from .risk import get_risk_level, get_effective_threshold
 
 
 # -------------------------------------------------------------------
@@ -65,40 +66,87 @@ def finalize_verification(
     artifact_type: str,
     rubric_result: dict,
     notes: str = "",
+    rubric_pass_threshold: float | None = None,
+    debate_verdict: dict | None = None,
 ) -> str:
     """
     Determine and persist the final verification status for an artifact.
 
-    Policy:
-      - rubric fails  → status = "fail"
-      - rubric passes, type in HUMAN_GATE_TYPES → status = "escalated"
-      - rubric passes, otherwise                 → status = "pass"
+    Policy (Phase 3 — risk-adjusted):
+      1. Compute risk level and effective threshold from risk matrix.
+      2. If rubric_pass_threshold is provided, re-evaluate pass/fail
+         using effective_threshold (risk-adjusted floor).
+      3. rubric fails  → status = "fail"
+      4. rubric passes, type in HUMAN_GATE_TYPES → status = "escalated"
+      5. rubric passes, debate_verdict provided:
+           - "no_consensus" → "escalated"
+           - "consensus_fail" → "fail"
+           - "consensus_pass" → "pass" (unless human gate)
+      6. rubric passes, otherwise → status = "pass"
 
     Args:
         workspace:  Workspace instance
         artifact_id: artifact identifier
         version:   artifact version number
         artifact_type: one of the registered artifact types
-        rubric_result: dict with "passed" (bool) and "detail" (dict)
+        rubric_result: dict with "passed" (bool), "score" (float), "detail" (dict)
         notes:     optional human-readable note (e.g. retry count)
+        rubric_pass_threshold: base threshold from rubric (for risk adjustment)
+        debate_verdict: optional debate review result dict
 
     Returns:
         The status string that was written to the artifact index.
     """
-    if not rubric_result["passed"]:
+    risk_level = get_risk_level(artifact_type)
+
+    # ── Risk-adjusted pass/fail ──────────────────────────────────────
+    if rubric_pass_threshold is not None:
+        effective_threshold = get_effective_threshold(artifact_type, rubric_pass_threshold)
+        rubric_pass = rubric_result["score"] >= effective_threshold
+    else:
+        effective_threshold = rubric_pass_threshold  # None
+        rubric_pass = rubric_result["passed"]
+
+    # ── Determine status ─────────────────────────────────────────────
+    if not rubric_pass:
         status = "fail"
+    elif debate_verdict is not None:
+        decision = debate_verdict.get("final_decision", "no_consensus")
+        if decision == "no_consensus":
+            status = "escalated"
+        elif decision == "consensus_fail":
+            status = "fail"
+        elif decision == "consensus_pass":
+            if artifact_type in HUMAN_GATE_TYPES:
+                status = "escalated"
+            else:
+                status = "pass"
+        else:
+            status = "escalated"  # safety: unknown decision → escalate
     elif artifact_type in HUMAN_GATE_TYPES:
         status = "escalated"
     else:
         status = "pass"
 
-    detail_json = json.dumps(rubric_result.get("detail", {}), ensure_ascii=False)
+    # ── Build verification notes with risk info ──────────────────────
+    detail = rubric_result.get("detail", {})
+    risk_info = {
+        "risk_level": risk_level,
+        "effective_threshold": effective_threshold,
+        "rubric_score": rubric_result.get("score"),
+    }
+    if debate_verdict is not None:
+        risk_info["debate_final_decision"] = debate_verdict.get("final_decision")
+        risk_info["debate_rounds"] = len(debate_verdict.get("rounds", []))
+
+    detail_json = json.dumps(detail, ensure_ascii=False)
+    risk_json = json.dumps(risk_info, ensure_ascii=False)
     update_verification(
         workspace,
         artifact_id,
         version,
         status,
-        notes=f"{notes}  {detail_json}".strip(),
+        notes=f"{notes}  {detail_json}  risk={risk_json}".strip(),
     )
     return status
 
@@ -251,6 +299,50 @@ def check_quiz_bank(content: str, rubric: dict) -> dict:
         tf_markers = len(re.findall(r"\b(true|false|đúng|sai)\b", text_lower))
         has_variety = has_variety or (mc_markers > 0 and tf_markers > 0)
         scores["difficulty_variety"] = 1.0 if has_variety else 0.0
+
+    return _build_result(scores, rubric)
+
+
+# -------------------------------------------------------------------
+# Checker: debate_verdict (Phase 3)
+# -------------------------------------------------------------------
+@checker_for("debate_verdict")
+def check_debate_verdict(content: str, rubric: dict) -> dict:
+    """Check debate_verdict artifact against its rubric.
+
+    The content should be a JSON string or dict representation of the verdict.
+    """
+    scores: Dict[str, float] = {}
+    criterion_names = {c["name"] for c in rubric.get("criteria", [])}
+
+    # Try to parse as JSON
+    verdict = None
+    if isinstance(content, str):
+        try:
+            verdict = json.loads(content)
+        except json.JSONDecodeError:
+            verdict = {}
+    elif isinstance(content, dict):
+        verdict = content
+    else:
+        verdict = {}
+
+    if "consensus_reached" in criterion_names:
+        decision = verdict.get("final_decision", "")
+        has_consensus = decision in ("consensus_pass", "consensus_fail")
+        scores["consensus_reached"] = 1.0 if has_consensus else 0.0
+
+    if "rounds_completed" in criterion_names:
+        rounds = verdict.get("rounds", [])
+        scores["rounds_completed"] = 1.0 if len(rounds) >= 1 else 0.0
+
+    if "arguments_present" in criterion_names:
+        rounds = verdict.get("rounds", [])
+        all_have_args = all(
+            r.get("proponent_argument", "").strip() and r.get("opponent_argument", "").strip()
+            for r in rounds
+        )
+        scores["arguments_present"] = 1.0 if all_have_args and len(rounds) > 0 else 0.0
 
     return _build_result(scores, rubric)
 
