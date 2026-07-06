@@ -486,3 +486,74 @@ def test_pipeline_skips_debate_for_low_risk_artifact(tmp_path):
                                       "lit_review_md", rubric, "low", None, max_retries=0)
 
     mock_debate.assert_not_called()
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Test: debate_verdict is actually persisted to Artifact Store
+# ─────────────────────────────────────────────────────────────────────
+def test_debate_verdict_persisted_to_store_after_debate(tmp_path):
+    """After _maybe_run_debate, the verdict must be retrievable from
+    the Artifact Store using the same API the approve command uses."""
+    import json
+    from unittest import mock
+    from hermes.core.workspace import Workspace
+    from hermes.core.storage import save_artifact, get_artifact, read_artifact_content
+    from hermes.pipeline.full_lecture_pipeline import _maybe_run_debate
+
+    ws = Workspace(str(tmp_path))
+    ws.ensure_initialized()
+
+    # Create the target artifact first (simulating what run_stage does)
+    target = save_artifact(
+        ws, "lecture-debate-test", "Lecture content here...",
+        "lecture_draft", "T-20260706-001",
+    )
+
+    rubric = {"pass_threshold": 0.80, "criteria": []}
+    result = {"passed": True, "score": 0.90, "detail": {}}
+
+    mock_verdict = {
+        "artifact_type": "debate_verdict",
+        "target_artifact_id": "lecture-debate-test",
+        "target_artifact_version": target["version"],
+        "rounds": [
+            {"round": 1, "proponent_argument": "Solid defense.", "opponent_argument": "No errors — agree."}
+        ],
+        "final_decision": "consensus_pass",
+        "unresolved_issues": [],
+    }
+
+    with mock.patch(
+        "hermes.pipeline.full_lecture_pipeline.run_debate_review",
+        return_value=mock_verdict,
+    ):
+        with mock.patch(
+            "hermes.pipeline.full_lecture_pipeline.finalize_verification",
+            return_value="escalated",
+        ):
+            new_status = _maybe_run_debate(
+                ws, target, "lecture_draft", "content", result, rubric,
+                provider=None, notes="test",
+            )
+
+    assert new_status == "escalated"
+
+    # ── NOW READ BACK FROM THE REAL ARTIFACT STORE ──────────────
+    verdict_from_store = get_artifact(ws, "lecture-debate-test-debate")
+    assert verdict_from_store is not None, "debate_verdict NOT FOUND in Artifact Store!"
+    assert verdict_from_store["type"] == "debate_verdict"
+    assert verdict_from_store["version"] == 1
+    assert verdict_from_store["verification_status"] == "pending"
+
+    # Verify target_artifact metadata
+    meta = verdict_from_store.get("metadata", {})
+    assert meta.get("target_artifact_id") == "lecture-debate-test"
+    assert meta.get("target_artifact_version") == target["version"]
+    assert meta.get("target_artifact_type") == "lecture_draft"
+
+    # Read actual content
+    content = read_artifact_content(ws, verdict_from_store)
+    parsed = json.loads(content)
+    assert parsed["final_decision"] == "consensus_pass"
+    assert len(parsed["rounds"]) == 1
+    assert "No errors" in parsed["rounds"][0]["opponent_argument"]
