@@ -191,15 +191,28 @@ def run_full_lecture_pipeline(
     ws = Workspace(workspace_root)
     ws.ensure_initialized()
 
-    # Load rubrics if not provided
+    # Load rubrics if not provided — try workspace first, fall back to package
+    from hermes.rubrics import load_rubric
     if rubric_lit is None:
-        rubric_lit = json.loads((ws.rubric_dir / "R-lit-review-v1.json").read_text(encoding="utf-8"))
+        try:
+            rubric_lit = json.loads((ws.rubric_dir / "R-lit-review-v1.json").read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            rubric_lit = load_rubric("lit_review")
     if rubric_outline is None:
-        rubric_outline = json.loads((ws.rubric_dir / "R-course-outline-v1.json").read_text(encoding="utf-8"))
+        try:
+            rubric_outline = json.loads((ws.rubric_dir / "R-course-outline-v1.json").read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            rubric_outline = load_rubric("course_outline")
     if rubric_lecture is None:
-        rubric_lecture = json.loads((ws.rubric_dir / "R-lecture-draft-v1.json").read_text(encoding="utf-8"))
+        try:
+            rubric_lecture = json.loads((ws.rubric_dir / "R-lecture-draft-v1.json").read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            rubric_lecture = load_rubric("lecture_draft")
     if rubric_quiz is None:
-        rubric_quiz = json.loads((ws.rubric_dir / "R-quiz-bank-v1.json").read_text(encoding="utf-8"))
+        try:
+            rubric_quiz = json.loads((ws.rubric_dir / "R-quiz-bank-v1.json").read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            rubric_quiz = load_rubric("quiz_bank")
 
     stages: list[dict] = []
     overall_start = time.time()
@@ -238,8 +251,8 @@ def run_full_lecture_pipeline(
     outline_result = run_stage(
         workspace=ws,
         agent_builder=build_curriculum_designer_agent,
-        task_builder=lambda a, path: build_course_outline_task(
-            a, lit_review_content=lit_content, learning_objectives=learning_objectives, output_path=path
+        task_builder=lambda a, output_path: build_course_outline_task(
+            a, lit_review_content=lit_content, learning_objectives=learning_objectives, output_path=output_path
         ),
         artifact_type="course_outline",
         rubric=rubric_outline,
@@ -268,8 +281,8 @@ def run_full_lecture_pipeline(
     lecture_result = run_stage(
         workspace=ws,
         agent_builder=build_content_writer_agent,
-        task_builder=lambda a, path: build_lecture_draft_task(
-            a, course_outline_content=outline_content, output_path=path
+        task_builder=lambda a, output_path: build_lecture_draft_task(
+            a, course_outline_content=outline_content, output_path=output_path
         ),
         artifact_type="lecture_draft",
         rubric=rubric_lecture,
@@ -299,8 +312,8 @@ def run_full_lecture_pipeline(
     quiz_result = run_stage(
         workspace=ws,
         agent_builder=build_assessment_builder_agent,
-        task_builder=lambda a, path: build_quiz_bank_task(
-            a, lecture_draft_content=lecture_content, output_path=path
+        task_builder=lambda a, output_path: build_quiz_bank_task(
+            a, lecture_draft_content=lecture_content, output_path=output_path
         ),
         artifact_type="quiz_bank",
         rubric=rubric_quiz,
@@ -329,8 +342,8 @@ def run_full_lecture_pipeline(
     editor_result = run_stage(
         workspace=ws,
         agent_builder=build_editor_agent,
-        task_builder=lambda a, path: build_edit_task(
-            a, artifact_content=lecture_content, output_path=path
+        task_builder=lambda a, output_path: build_edit_task(
+            a, artifact_content=lecture_content, output_path=output_path
         ),
         artifact_type="final_lecture",
         rubric=rubric_lecture,  # reuse lecture rubric as quality gate
