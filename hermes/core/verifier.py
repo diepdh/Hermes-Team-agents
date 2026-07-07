@@ -16,6 +16,7 @@ from typing import Dict, Any
 
 from .storage import update_verification
 from .risk import get_risk_level, get_effective_threshold
+from .events import log_event
 
 
 # -------------------------------------------------------------------
@@ -163,6 +164,18 @@ def finalize_verification(
         status,
         notes=f"{notes}  {detail_json}  risk={risk_json}".strip(),
     )
+
+    # ── Log verification event ───────────────────────────────────────
+    log_event(workspace, "verification_result", {
+        "artifact_id": artifact_id,
+        "artifact_version": version,
+        "artifact_type": artifact_type,
+        "status": status,
+        "risk_level": risk_level,
+        "rubric_score": rubric_result.get("score"),
+        "effective_threshold": effective_threshold,
+    })
+
     return status
 
 

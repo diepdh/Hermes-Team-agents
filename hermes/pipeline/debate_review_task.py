@@ -16,6 +16,8 @@ from pathlib import Path
 from crewai import Crew, Process
 from crewai.project import CrewBase
 
+from hermes.core.events import log_event
+
 
 # ─────────────────────────────────────────────────────────────────────
 # Pure function: consensus detection (no LLM calls — testable)
@@ -138,6 +140,7 @@ def run_debate_review(
     provider: str | None = None,
     max_rounds: int = 3,
     workdir: str | None = None,
+    workspace=None,  # Workspace for event logging (Phase 4)
 ) -> dict:
     """
     Run bounded multi-round debate review for a high/critical-risk artifact.
@@ -225,14 +228,39 @@ def run_debate_review(
             "opponent_argument": opp_arg,
         })
 
+        # ── Log round completed event ────────────────────────────────
+        if workspace is not None:
+            log_event(workspace, "debate_round_completed", {
+                "artifact_id": artifact_id,
+                "artifact_version": artifact_version,
+                "artifact_type": artifact_type,
+                "round": i,
+            })
+
         # ── Judge consensus (pure function, no LLM) ──────────────────
         decision = judge_consensus(prop_arg, opp_arg)
         if decision in ("consensus_pass", "consensus_fail"):
+            if workspace is not None:
+                log_event(workspace, "debate_resolved", {
+                    "artifact_id": artifact_id,
+                    "artifact_version": artifact_version,
+                    "artifact_type": artifact_type,
+                    "final_decision": decision,
+                    "total_rounds": i,
+                })
             return build_verdict(
                 artifact_id, artifact_version, artifact_type, rounds, decision
             )
 
     # Exhausted max_rounds without consensus
+    if workspace is not None:
+        log_event(workspace, "debate_resolved", {
+            "artifact_id": artifact_id,
+            "artifact_version": artifact_version,
+            "artifact_type": artifact_type,
+            "final_decision": "no_consensus",
+            "total_rounds": max_rounds,
+        })
     return build_verdict(
         artifact_id, artifact_version, artifact_type, rounds, "no_consensus"
     )

@@ -69,6 +69,7 @@ def _maybe_run_debate(
         provider=provider,
         max_rounds=3,
         workdir=str(workspace.artifact_dir),
+        workspace=workspace,
     )
     # Persist debate_verdict to Artifact Store so human reviewers can
     # see the full proponent/opponent arguments when approving escalated

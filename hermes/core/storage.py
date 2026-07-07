@@ -13,6 +13,7 @@ import json
 from datetime import datetime, timezone
 
 from .workspace import Workspace
+from .events import log_event
 
 
 def _load_index(path):
@@ -58,6 +59,15 @@ def save_artifact(
     }
     index[f"{artifact_id}_v{version}"] = record
     _save_index(index_path, index)
+
+    # ── Log artifact creation event ──────────────────────────────────
+    log_event(workspace, "artifact_version_created", {
+        "artifact_id": artifact_id,
+        "version": version,
+        "artifact_type": artifact_type,
+        "produced_by_task": produced_by_task,
+    })
+
     return record
 
 
