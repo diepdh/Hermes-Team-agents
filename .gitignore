@@ -12,3 +12,4 @@ build/
 .ruff_cache/
 .env
 .venv
+logs/events.jsonl
