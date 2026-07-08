@@ -27,6 +27,8 @@
       "type": "string",
       "enum": [
         "lit_review_md",
+        "literature_support",
+        "source_analysis",
         "course_outline",
         "lecture_draft",
         "quiz_bank",

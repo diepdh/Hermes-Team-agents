@@ -1,0 +1,31 @@
+{
+  "rubric_id": "R-paper-draft-v1",
+  "criteria": [
+    {
+      "name": "structure_completeness",
+      "weight": 0.25,
+      "check": "Co du Title, Abstract, Introduction, Methods, Results, Discussion, References (IMRaD)"
+    },
+    {
+      "name": "data_fidelity",
+      "weight": 0.3,
+      "check": "So lieu/hinh anh trich dan khop voi source_analysis, khong bia them"
+    },
+    {
+      "name": "citation_format",
+      "weight": 0.15,
+      "check": "References dung dinh dang, du so luong toi thieu"
+    },
+    {
+      "name": "clarity",
+      "weight": 0.15,
+      "check": "Van phong hoc thuat ro rang"
+    },
+    {
+      "name": "reviewer_verdict",
+      "weight": 0.15,
+      "check": "Reviewer Agent khong phat hien loi nghiem trong"
+    }
+  ],
+  "pass_threshold": 0.85
+}

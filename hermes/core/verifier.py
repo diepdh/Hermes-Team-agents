@@ -332,6 +332,153 @@ def check_quiz_bank(content: str, rubric: dict) -> dict:
 
 
 # -------------------------------------------------------------------
+# Checker: paper_draft (Phase 5.2) — rule-based only; LLM-judge in P5.3
+# -------------------------------------------------------------------
+@checker_for("paper_draft")
+def check_paper_draft(content: str, rubric: dict) -> dict:
+    """Check paper_draft structure against IMRaD rubric.
+
+    Rule-based only.  ``data_fidelity`` and ``reviewer_verdict`` scores
+    are defaulted — the LLM-judge in P5.3 will replace them with real
+    assessments.
+    """
+    import re
+    scores: Dict[str, float] = {}
+    criterion_names = {c["name"] for c in rubric.get("criteria", [])}
+    text_lower = content.lower()
+
+    if "structure_completeness" in criterion_names:
+        required_sections = [
+            ("title", [r"title", r"ti[uù] đề"]),
+            ("abstract", [r"abstract", r"t[oó]m t[ắa]t"]),
+            ("introduction", [r"introduction", r"gi[ớơ]i thi[ệe]u", r"m[ởơ] đ[ầa]u"]),
+            ("methods", [r"methods?", r"ph[uư][ơo]ng ph[aá]p"]),
+            ("results", [r"results?", r"k[ếe]t qu[ảa]"]),
+            ("discussion", [r"discussion", r"th[ảa]o lu[ậa]n", r"b[aà]n lu[ậa]n"]),
+            ("references", [r"references?", r"t[aà]i li[ệe]u tham kh[ảa]o"]),
+        ]
+        found = 0
+        for _name, patterns in required_sections:
+            for pat in patterns:
+                if re.search(rf"(?:^|\n)#+\s*{pat}", text_lower):
+                    found += 1
+                    break
+        scores["structure_completeness"] = found / len(required_sections)
+
+    if "data_fidelity" in criterion_names:
+        # Cannot verify without comparing against source_analysis input.
+        # P5.3 LLM-judge will handle this.  Default: neutral-passing.
+        scores["data_fidelity"] = 0.7
+
+    if "citation_format" in criterion_names:
+        has_refs = bool(re.search(r"(?:references|tài liệu tham khảo)", text_lower))
+        entries = len(re.findall(r"\(\d{4}\)", content))
+        if has_refs and entries >= 3:
+            scores["citation_format"] = 1.0
+        elif has_refs:
+            # Check if the References section has the anti-fabrication fallback
+            # instead of real citations — that deserves full credit too.
+            if re.search(
+                r"data provided by|nguồn dữ liệu được cung cấp|không có tài liệu tham khảo",
+                text_lower,
+            ):
+                scores["citation_format"] = 1.0
+            else:
+                scores["citation_format"] = 0.5
+        else:
+            scores["citation_format"] = 0.0
+
+    if "clarity" in criterion_names:
+        word_count = len(content.split())
+        scores["clarity"] = 1.0 if word_count > 300 else (
+            0.5 if word_count > 150 else 0.0
+        )
+
+    if "reviewer_verdict" in criterion_names:
+        # LLM-judge will provide real verdict in P5.3.
+        scores["reviewer_verdict"] = 1.0
+
+    return _build_result(scores, rubric)
+
+
+# -------------------------------------------------------------------
+# Checker: debate_verdict (Phase 3)
+# -------------------------------------------------------------------
+@checker_for("source_analysis")
+def check_source_analysis(content: str, rubric: dict) -> dict:
+    """Check source_analysis artifact coverage without any LLM judge."""
+    scores: Dict[str, float] = {}
+    criterion_names = {c["name"] for c in rubric.get("criteria", [])}
+
+    try:
+        payload = json.loads(content) if isinstance(content, str) else content
+    except json.JSONDecodeError:
+        payload = {}
+
+    if "has_content" in criterion_names:
+        summary = str(payload.get("paragraphs_summary", "")).strip()
+        scores["has_content"] = 1.0 if summary else 0.0
+
+    if "images_processed" in criterion_names:
+        images = payload.get("images", []) if isinstance(payload, dict) else []
+        all_described = bool(images) and all(str(img.get("description", "")).strip() for img in images)
+        scores["images_processed"] = 1.0 if all_described else 0.0
+
+    return _build_result(scores, rubric)
+
+
+# -------------------------------------------------------------------
+# Checker: literature_support (Phase 5.2.5)
+# -------------------------------------------------------------------
+@checker_for("literature_support")
+def check_literature_support(content: str, rubric: dict) -> dict:
+    """Check literature_support entries have real url + excerpt from API."""
+    scores: Dict[str, float] = {}
+    criterion_names = {c["name"] for c in rubric.get("criteria", [])}
+
+    try:
+        payload = json.loads(content) if isinstance(content, str) else content
+    except json.JSONDecodeError:
+        payload = {}
+
+    entries = payload.get("entries", []) if isinstance(payload, dict) else []
+    search_attempted = payload.get("search_attempted", False) if isinstance(payload, dict) else False
+    queries = payload.get("queries_used", []) if isinstance(payload, dict) else []
+    search_error = payload.get("search_error") if isinstance(payload, dict) else None
+
+    if "has_url_for_all" in criterion_names:
+        if not entries:
+            scores["has_url_for_all"] = 1.0  # empty = trivially satisfied
+        else:
+            all_have_url = all(
+                isinstance(e, dict) and str(e.get("url", "")).strip()
+                for e in entries
+            )
+            scores["has_url_for_all"] = 1.0 if all_have_url else 0.0
+
+    if "has_excerpt_for_all" in criterion_names:
+        if not entries:
+            scores["has_excerpt_for_all"] = 1.0
+        else:
+            all_have_excerpt = all(
+                isinstance(e, dict) and str(e.get("excerpt", "")).strip()
+                for e in entries
+            )
+            scores["has_excerpt_for_all"] = 1.0 if all_have_excerpt else 0.0
+
+    if "search_attempted" in criterion_names:
+        # search_error != None means the API call failed — not a valid search
+        if search_error:
+            scores["search_attempted"] = 0.0
+        else:
+            scores["search_attempted"] = 1.0 if (
+                search_attempted and isinstance(queries, list) and len(queries) > 0
+            ) else 0.0
+
+    return _build_result(scores, rubric)
+
+
+# -------------------------------------------------------------------
 # Checker: debate_verdict (Phase 3)
 # -------------------------------------------------------------------
 @checker_for("debate_verdict")

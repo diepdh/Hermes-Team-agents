@@ -1,0 +1,16 @@
+{
+  "rubric_id": "R-source-analysis-v1",
+  "criteria": [
+    {
+      "name": "has_content",
+      "weight": 0.5,
+      "check": "paragraphs_summary khong rong"
+    },
+    {
+      "name": "images_processed",
+      "weight": 0.5,
+      "check": "Moi anh trong docx goc deu co description, ke ca loi"
+    }
+  ],
+  "pass_threshold": 0.9
+}

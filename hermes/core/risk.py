@@ -2,6 +2,8 @@
 
 RISK_MATRIX = {
     "lit_review_md":    "low",
+    "source_analysis":  "low",
+    "literature_support": "high",
     "course_outline":   "medium",
     "lecture_draft":    "high",
     "quiz_bank":        "high",

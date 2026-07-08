@@ -1,0 +1,21 @@
+{
+  "rubric_id": "R-literature-support-v1",
+  "criteria": [
+    {
+      "name": "has_url_for_all",
+      "weight": 0.4,
+      "check": "Moi entry co truong url khong rong"
+    },
+    {
+      "name": "has_excerpt_for_all",
+      "weight": 0.4,
+      "check": "Moi entry co truong excerpt khong rong (lay nguyen van tu API)"
+    },
+    {
+      "name": "search_attempted",
+      "weight": 0.2,
+      "check": "search_attempted = true, queries_used khong rong"
+    }
+  ],
+  "pass_threshold": 0.9
+}

@@ -220,7 +220,7 @@ Answer Key: 1=B, 2=C, 3=False, 4=True, 5=see sample
 # Test: verifier registry
 # -------------------------------------------------------------------
 def test_verify_artifact_dispatches_to_correct_checker():
-    assert CHECKER_REGISTRY.keys() == {"lit_review_md", "course_outline", "lecture_draft", "quiz_bank", "debate_verdict"}
+    assert CHECKER_REGISTRY.keys() == {"lit_review_md", "course_outline", "lecture_draft", "quiz_bank", "source_analysis", "literature_support", "paper_draft", "debate_verdict"}
 
 
 def test_verify_artifact_raises_for_unknown_type():
