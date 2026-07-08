@@ -39,6 +39,9 @@ def _update_verification_with_reviewer(
     detail["reviewer_verdict"] = (
         1.0 if reviewer_result.get("passed") else 0.0
     )
+    if reviewer_result.get("llm_unavailable"):
+        detail["llm_unavailable"] = True
+        detail["reviewer_verdict"] = 0.0
 
     # Recompute score
     weighted_total = sum(
@@ -105,7 +108,21 @@ def run_paper_pipeline_with_reviewer(
         paper_content, source_data, lit_data, provider=provider,
     )
 
-    # ── Step 4: Update verification with real scores ──────────────
+    # ── Step 4: LLM unavailable → escalate immediately ────────────
+    if reviewer_result.get("llm_unavailable"):
+        _update_verification_with_reviewer(workspace, writer_artifact, reviewer_result)
+        updated_artifact = get_artifact(
+            workspace, artifact_id, writer_artifact["version"],
+        )
+        return {
+            "artifact": updated_artifact,
+            "reviewer_verdict": reviewer_result,
+            "status": "escalated",
+            "attempts": attempt,
+            "total_elapsed_seconds": round(time.time() - overall_start, 2),
+        }
+
+    # ── Step 5: Update verification with real scores ──────────────
     _update_verification_with_reviewer(workspace, writer_artifact, reviewer_result)
 
     elapsed = round(time.time() - overall_start, 2)

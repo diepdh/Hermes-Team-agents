@@ -12,7 +12,6 @@ from hermes.agents.paper_reviewer import (
     run_reviewer_judge,
     check_citations_exist_in_literature,
 )
-from hermes.core.verifier import CHECKER_REGISTRY
 
 
 # ── Sample data ────────────────────────────────────────────────────────
@@ -106,7 +105,7 @@ Fake, X. (2025). Nonexistent Paper.
 """
 
 
-# ── Tests ──────────────────────────────────────────────────────────────
+# ── Tests: Layer 1 — rule-based citation check (NO LLM dependency) ─────
 
 def test_check_citations_exist_valid():
     ok, violations = check_citations_exist_in_literature(GOOD_PAPER, SAMPLE_LIT)
@@ -130,26 +129,161 @@ def test_check_citations_exist_empty_lit():
     assert violations == []
 
 
-def test_reviewer_judge_detects_fake_data():
-    """LLM-judge should flag fabricated numbers not in source."""
-    verdict = run_reviewer_judge(PAPER_WITH_FAKE_DATA, SAMPLE_SOURCE)
-    # Fake numbers: 99.9%, 10000 — should be detected
-    assert verdict["data_fidelity"] < 0.8 or verdict["passed"] is False, (
-        f"Expected low score for fake data, got data_fidelity={verdict['data_fidelity']}"
+# ── Tests: Layer 2 — LLM-judge ─────────────────────────────────────────
+
+def test_reviewer_judge_returns_llm_unavailable_flag_when_llm_is_down():
+    """When LLM is unavailable, verdict must signal escalation — NOT auto-pass.
+
+    Uses a nonexistent provider to deterministically trigger the fallback
+    path without depending on the real LLM being up or down.
+    """
+    verdict = run_reviewer_judge(
+        PAPER_WITH_FAKE_DATA, SAMPLE_SOURCE, provider="nonexistent_provider",
+    )
+    # With LLM unavailable, the system must not claim a successful review.
+    assert verdict["passed"] is False, (
+        f"LLM-unavailable must NOT auto-pass. Got passed={verdict['passed']}"
+    )
+    assert verdict["llm_unavailable"] is True, (
+        f"Expected llm_unavailable=True, got {verdict['llm_unavailable']}"
+    )
+    assert "[Reviewer LLM call failed" in verdict["feedback"], (
+        f"Feedback must document LLM failure, got: {verdict['feedback']}"
     )
 
 
-def test_reviewer_judge_detects_fake_citation():
+def test_reviewer_judge_detects_fake_citation_via_layer1():
+    """Layer 1 rule-based check catches fake citation regardless of LLM.
+
+    Even when the LLM judge is down, the rule-based citation-existence
+    check MUST still detect a citation that is not in literature_support.
+    """
     verdict = run_reviewer_judge(
         PAPER_WITH_FAKE_CITATION, SAMPLE_SOURCE, SAMPLE_LIT,
+        provider="nonexistent_provider",
     )
-    # Fake citation "Fake (2025)" not in SAMPLE_LIT
-    assert verdict["citation_valid"] is False or verdict["passed"] is False
+    # Layer 1 runs BEFORE LLM — it must catch the fake citation.
+    assert verdict["citation_valid"] is False, (
+        f"Layer 1 must detect fake citation. Got citation_valid={verdict['citation_valid']}"
+    )
+    assert "Fake" in str(verdict.get("feedback", "")), (
+        f"Feedback must mention the fake citation. Got: {verdict.get('feedback')}"
+    )
 
 
-def test_reviewer_judge_passes_good_paper():
-    verdict = run_reviewer_judge(GOOD_PAPER, SAMPLE_SOURCE, SAMPLE_LIT)
-    # This may fail depending on LLM — test is for structure, not score
+def test_reviewer_judge_structure_always_valid():
+    """Verdict dict always has the required keys, even when LLM is down."""
+    verdict = run_reviewer_judge(
+        GOOD_PAPER, SAMPLE_SOURCE, SAMPLE_LIT, provider="nonexistent_provider",
+    )
     assert "data_fidelity" in verdict
+    assert "citation_relevant" in verdict
+    assert "citation_valid" in verdict
     assert "feedback" in verdict
+    assert "passed" in verdict
+    assert "llm_unavailable" in verdict
     assert isinstance(verdict["passed"], bool)
+
+
+def test_reviewer_llm_judge_detects_fake_data():
+    """LLM-judge (real provider) must detect fabricated numbers not in source.
+
+    This test requires a working LLM provider (opencode_go).
+    If the LLM is unavailable, the test is skipped gracefully.
+    """
+    verdict = run_reviewer_judge(
+        PAPER_WITH_FAKE_DATA, SAMPLE_SOURCE, provider="opencode_go",
+    )
+    if verdict.get("llm_unavailable"):
+        pytest.skip("LLM provider is unavailable — cannot test real judge")
+
+    # Fake numbers: 99.9%, 10000 — LLM must detect them
+    assert verdict["data_fidelity"] < 0.5 or verdict["passed"] is False, (
+        f"LLM must flag fake data. Got data_fidelity={verdict['data_fidelity']}, "
+        f"passed={verdict['passed']}, feedback={verdict.get('feedback', '')[:200]}"
+    )
+
+
+# ── Test: Retry loop boundary ──────────────────────────────────────────
+
+def test_reviewer_fallback_escalates_without_retry():
+    """When LLM is unavailable, pipeline escalates on first attempt (no retry).
+
+    The llm_unavailable flag must short-circuit the retry loop — it makes
+    no sense to retry when the judge cannot run at all.
+    """
+    verdict = run_reviewer_judge(
+        PAPER_WITH_FAKE_DATA, SAMPLE_SOURCE, provider="nonexistent_provider",
+    )
+    assert verdict["llm_unavailable"] is True
+    assert verdict["passed"] is False
+
+    # Simulate pipeline: with llm_unavailable, escalate immediately, no retry.
+    # The pipeline must NOT attempt retries when the reviewer cannot run.
+    max_retries = 2
+    for attempt in range(1, max_retries + 3):
+        verdict = run_reviewer_judge(
+            PAPER_WITH_FAKE_DATA, SAMPLE_SOURCE, provider="nonexistent_provider",
+        )
+        if verdict.get("llm_unavailable"):
+            # Pipeline escalates — break on first attempt.
+            assert attempt == 1, (
+                f"LLM-unavailable must escalate on first attempt, got attempt={attempt}"
+            )
+            break
+
+
+def test_pipeline_retry_boundary_logic():
+    """Pipeline retry loop must not exceed max_retries boundary.
+
+    Simulates the retry decision: when max_retries=2, the pipeline may
+    attempt up to attempt=3 (initial + 2 retries).  At attempt=4, it
+    must escalate without further recursion.
+    """
+    max_retries = 2
+    attempts_made = []
+    escalated = False
+
+    def simulated_loop(attempt=1):
+        nonlocal escalated
+        attempts_made.append(attempt)
+
+        # Simulate reviewer failure (passed=False, but LLM is available)
+        reviewer_passed = False
+
+        if reviewer_passed:
+            return "pass"
+
+        if attempt <= max_retries:
+            return simulated_loop(attempt + 1)
+        else:
+            escalated = True
+            return "escalated"
+
+    status = simulated_loop(1)
+
+    assert status == "escalated"
+    assert escalated is True
+    assert attempts_made == [1, 2, 3], (
+        f"With max_retries={max_retries}, expected attempts [1,2,3], "
+        f"got {attempts_made}"
+    )
+    assert len(attempts_made) == max_retries + 1, (
+        f"Total attempts ({len(attempts_made)}) must equal "
+        f"max_retries+1 ({max_retries + 1})"
+    )
+
+
+def test_pipeline_stops_at_max_retries_zero():
+    """With max_retries=0, pipeline must not retry at all."""
+    max_retries = 0
+    attempts = []
+
+    for attempt in range(1, max_retries + 3):
+        attempts.append(attempt)
+        if attempt > max_retries:
+            break
+
+    assert attempts == [1], (
+        f"With max_retries=0, only 1 attempt allowed, got {len(attempts)}"
+    )

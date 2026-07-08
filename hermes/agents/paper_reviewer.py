@@ -96,14 +96,17 @@ def run_reviewer_judge(
     )
 
     # ── Layer 2: LLM evaluation ────────────────────────────────────
-    llm = get_llm(provider)
+    llm_unavailable = False
 
-    source_json = json.dumps(source_analysis, ensure_ascii=False, indent=2)[:3000]
-    lit_json = json.dumps(
-        (literature_support or {}).get("entries", [])[:5], ensure_ascii=False, indent=2,
-    )[:2000]
+    try:
+        llm = get_llm(provider)
 
-    prompt = f"""Academic reviewer: evaluate this paper draft.
+        source_json = json.dumps(source_analysis, ensure_ascii=False, indent=2)[:3000]
+        lit_json = json.dumps(
+            (literature_support or {}).get("entries", [])[:5], ensure_ascii=False, indent=2,
+        )[:2000]
+
+        prompt = f"""Academic reviewer: evaluate this paper draft.
 
 PAPER (excerpt):
 {paper_draft[:2000]}
@@ -125,17 +128,20 @@ Rules:
 - passed: true if data_fidelity >= 0.8 AND citation_relevant >= 0.7
 - If no literature references exist, set citation_relevant=1.0"""
 
-    try:
         resp = llm.call(prompt, max_tokens=800)
         resp_clean = resp.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        if not resp_clean:
+            raise RuntimeError("LLM returned empty response")
         judge = json.loads(resp_clean)
     except Exception:
-        # If LLM fails, pass through with conservative defaults
+        # If LLM fails, escalate — do NOT auto-pass.
+        # A review that never happened cannot certify quality.
+        llm_unavailable = True
         judge = {
-            "data_fidelity": 0.7,
-            "citation_relevant": 0.7,
+            "data_fidelity": 0.0,
+            "citation_relevant": 0.0,
             "feedback": "[Reviewer LLM call failed — manual review needed]",
-            "passed": True,
+            "passed": False,
         }
 
     # Override passed based on rule-based citation check
@@ -154,6 +160,7 @@ Rules:
         "citation_valid": citation_valid,
         "citation_relevant": judge.get("citation_relevant", 0.5),
         "feedback": judge.get("feedback", ""),
+        "llm_unavailable": llm_unavailable,
     }
 
 
