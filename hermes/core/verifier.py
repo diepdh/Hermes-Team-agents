@@ -524,6 +524,66 @@ def check_debate_verdict(content: str, rubric: dict) -> dict:
 
 
 # -------------------------------------------------------------------
+# Checker: final_paper (Phase 5.5) — rule-based: file exists + not empty + IMRaD
+# -------------------------------------------------------------------
+@checker_for("final_paper")
+def check_final_paper(content: str, rubric: dict) -> dict:
+    """Check final_paper artifact: .docx file exists, not empty, has IMRaD."""
+    import json
+    from pathlib import Path
+    from docx import Document
+
+    scores: Dict[str, float] = {}
+    criterion_names = {c["name"] for c in rubric.get("criteria", [])}
+
+    # Parse content (JSON with file path)
+    try:
+        payload = json.loads(content) if isinstance(content, str) else content
+    except json.JSONDecodeError:
+        payload = {}
+    docx_path = payload.get("docx_path", "")
+
+    if "file_exists" in criterion_names:
+        scores["file_exists"] = 1.0 if docx_path and Path(docx_path).is_file() else 0.0
+
+    if "file_not_empty" in criterion_names:
+        if docx_path and Path(docx_path).is_file():
+            try:
+                doc = Document(docx_path)
+                has_content = len(doc.paragraphs) > 0
+                scores["file_not_empty"] = 1.0 if has_content else 0.0
+            except Exception:
+                scores["file_not_empty"] = 0.0
+        else:
+            scores["file_not_empty"] = 0.0
+
+    if "has_imrad_headings" in criterion_names:
+        if docx_path and Path(docx_path).is_file():
+            try:
+                doc = Document(docx_path)
+                heading_texts = [
+                    p.text.strip().lower()
+                    for p in doc.paragraphs
+                    if p.style.name.startswith("Heading")
+                ]
+                imrad_keywords = [
+                    "abstract", "introduction", "method",
+                    "result", "discussion", "reference",
+                ]
+                found = sum(
+                    1 for kw in imrad_keywords
+                    if any(kw in h for h in heading_texts)
+                )
+                scores["has_imrad_headings"] = found / len(imrad_keywords)
+            except Exception:
+                scores["has_imrad_headings"] = 0.0
+        else:
+            scores["has_imrad_headings"] = 0.0
+
+    return _build_result(scores, rubric)
+
+
+# -------------------------------------------------------------------
 # Shared result builder
 # -------------------------------------------------------------------
 def _build_result(scores: Dict[str, float], rubric: dict, extra: dict | None = None) -> dict:

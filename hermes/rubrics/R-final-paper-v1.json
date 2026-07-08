@@ -1,0 +1,21 @@
+{
+  "rubric_id": "R-final-paper-v1",
+  "criteria": [
+    {
+      "name": "file_exists",
+      "weight": 0.4,
+      "check": "File .docx da duoc tao ra va ton tai tren dia"
+    },
+    {
+      "name": "file_not_empty",
+      "weight": 0.3,
+      "check": "File .docx mo duoc va co noi dung (khong rong)"
+    },
+    {
+      "name": "has_imrad_headings",
+      "weight": 0.3,
+      "check": "File co du cac heading IMRaD co ban"
+    }
+  ],
+  "pass_threshold": 0.7
+}

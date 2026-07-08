@@ -26,7 +26,7 @@ RISK_ADJUSTED_FLOOR = {
 # Artifact types that must NOT trigger a debate_review, even if their
 # risk level is high/critical.  This prevents infinite recursion
 # (e.g. debating the output of a debate).
-SKIP_DEBATE_TYPES = {"debate_verdict"}
+SKIP_DEBATE_TYPES = {"debate_verdict", "final_paper"}
 
 
 def should_trigger_debate(artifact_type: str) -> bool:

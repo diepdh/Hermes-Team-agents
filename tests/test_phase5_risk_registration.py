@@ -103,8 +103,13 @@ def test_paper_draft_triggers_debate():
 
 
 def test_final_paper_triggers_debate():
-    """final_paper (risk=critical) must auto-trigger debate review."""
-    assert should_trigger_debate("final_paper") is True
+    """final_paper (risk=critical) is in SKIP_DEBATE_TYPES → NO debate.
+
+    final_paper is a format conversion of already-reviewed paper_draft.
+    Running a second debate on the same content would be redundant.
+    This is by design — see P5.5 section on SKIP_DEBATE_TYPES.
+    """
+    assert should_trigger_debate("final_paper") is False
 
 
 def test_low_risk_types_do_not_trigger_debate():
@@ -114,7 +119,13 @@ def test_low_risk_types_do_not_trigger_debate():
 
 
 def test_paper_draft_not_in_skip_debate_types():
-    """paper_draft must NOT be in SKIP_DEBATE_TYPES (debate should run)."""
+    """paper_draft must NOT be in SKIP_DEBATE_TYPES (debate should run).
+
+    final_paper IS in SKIP_DEBATE_TYPES (format conversion, not new content).
+    """
     from hermes.core.risk import SKIP_DEBATE_TYPES
     assert "paper_draft" not in SKIP_DEBATE_TYPES
-    assert "final_paper" not in SKIP_DEBATE_TYPES
+    assert "final_paper" in SKIP_DEBATE_TYPES, (
+        "final_paper must be in SKIP_DEBATE_TYPES: it's a format conversion "
+        "of already-reviewed paper_draft, not new content to debate."
+    )

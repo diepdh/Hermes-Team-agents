@@ -18,6 +18,7 @@ _TYPE_TO_FILE = {
     "source_analysis": "R-source-analysis-v1.json",
     "literature_support": "R-literature-support-v1.json",
     "paper_draft": "R-paper-draft-v1.json",
+    "final_paper": "R-final-paper-v1.json",
     "course_outline": "R-course-outline-v1.json",
     "lecture_draft": "R-lecture-draft-v1.json",
     "quiz_bank": "R-quiz-bank-v1.json",
