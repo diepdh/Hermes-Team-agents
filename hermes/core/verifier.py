@@ -549,7 +549,9 @@ def check_editor_diff(
     # ── Rule 1: number guard ────────────────────────────────────────
     allowed_numbers = set()
     for ks in source_analysis.get("key_statistics", []) or []:
-        allowed_numbers.add(str(ks).strip())
+        val = str(ks).strip().rstrip("%")
+        allowed_numbers.add(val)
+        allowed_numbers.add(val + "%")  # also allow with percent sign
     for m in re.finditer(r"\b\d+(?:\.\d+)?%?\b", original):
         allowed_numbers.add(m.group(0))
 
