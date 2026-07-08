@@ -33,7 +33,7 @@ PROVIDER_REGISTRY = {
         "base_url_env": "HERMES_LOCAL_CX_BASE_URL",
         "base_url_env_fallbacks": ["CX_BASE_URL"],
         "api_key_env": "HERMES_LOCAL_CX_API_KEY",
-        "api_key_env_fallbacks": ["CX_API_KEY"],
+        "api_key_env_fallbacks": ["LLM_API_KEY", "CX_API_KEY"],
         "timeout_env": "HERMES_LOCAL_CX_TIMEOUT",
         "timeout_env_fallbacks": ["CX_TIMEOUT"],
         "litellm_prefix": "openai",
