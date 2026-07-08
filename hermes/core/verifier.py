@@ -524,6 +524,92 @@ def check_debate_verdict(content: str, rubric: dict) -> dict:
 
 
 # -------------------------------------------------------------------
+# Rule-based diff guard: Editor must not change numbers or add fake citations
+# (Phase 5.6 — called BEFORE Reviewer LLM-judge on retry attempts)
+# -------------------------------------------------------------------
+def check_editor_diff(
+    original: str,
+    edited: str,
+    source_analysis: dict[str, Any],
+    literature_support: dict[str, Any] | None = None,
+) -> tuple[bool, list[str]]:
+    """Verify Editor only changed what it was allowed to change.
+
+    Returns (all_valid, list_of_violations).
+
+    Rules:
+      1. Every NUMBER in the edited version must exist in the original
+         OR in source_analysis.key_statistics.
+      2. Every NEW citation (not in original) must match an entry in
+         literature_support.
+    """
+    import re
+    violations: list[str] = []
+
+    # ── Rule 1: number guard ────────────────────────────────────────
+    allowed_numbers = set()
+    for ks in source_analysis.get("key_statistics", []) or []:
+        allowed_numbers.add(str(ks).strip())
+    for m in re.finditer(r"\b\d+(?:\.\d+)?%?\b", original):
+        allowed_numbers.add(m.group(0))
+
+    edited_numbers = set(re.findall(r"\b\d+(?:\.\d+)?%?\b", edited))
+    # Exclude years (4-digit 19xx/20xx) — they belong to citations, not data
+    new_numbers = {
+        n for n in (edited_numbers - allowed_numbers)
+        if not (len(n) == 4 and n.startswith(("19", "20")))
+    }
+    if new_numbers:
+        violations.append(
+            f"Editor introduced {len(new_numbers)} new numbers not in original "
+            f"or source: {sorted(new_numbers)[:5]}"
+        )
+
+    # ── Rule 2: citation guard ──────────────────────────────────────
+    if literature_support:
+        entries = literature_support.get("entries", []) or []
+        if entries:
+            lit_authors = set()
+            for e in entries:
+                authors = (e.get("authors", "") or "").lower()
+                for author in authors.split(","):
+                    lit_authors.add(author.strip())
+
+            orig_citations = set(
+                m.group(0).lower()
+                for m in re.finditer(
+                    r"[A-Z][a-z]+(?:\s*,\s*[A-Z]\.)?\s*\(\s*\d{4}\s*\)",
+                    original,
+                )
+            )
+            edited_citations = set(
+                m.group(0).lower()
+                for m in re.finditer(
+                    r"[A-Z][a-z]+(?:\s*,\s*[A-Z]\.)?\s*\(\s*\d{4}\s*\)",
+                    edited,
+                )
+            )
+            new_citations = edited_citations - orig_citations
+
+            for cite in new_citations:
+                author_part = cite.split("(")[0].strip().lower()
+                found = any(author_part in la for la in lit_authors)
+                if not found:
+                    found = any(
+                        word in cite
+                        for la in lit_authors
+                        for word in la.split()
+                        if len(word) > 2
+                    )
+                if not found:
+                    violations.append(
+                        f"Editor added citation '{cite}' not in literature_support"
+                    )
+
+    return len(violations) == 0, violations
+
+
+# -------------------------------------------------------------------
 # Checker: final_paper (Phase 5.5) — rule-based: file exists + not empty + IMRaD
 # -------------------------------------------------------------------
 @checker_for("final_paper")

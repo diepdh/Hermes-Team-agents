@@ -84,14 +84,29 @@ def run_paper_pipeline_with_reviewer(
     """
     overall_start = time.time()
 
-    # ── Step 1: Writer ────────────────────────────────────────────
-    writer_artifact = _run_writer(
-        workspace,
-        source_analysis_artifact,
-        artifact_id=artifact_id,
-        provider=provider,
-    )
-    paper_content = read_artifact_content(workspace, writer_artifact)
+    # ── Step 1: Get paper content ──────────────────────────────────
+    if attempt == 1:
+        # First attempt: Writer generates the paper
+        writer_artifact = _run_writer(
+            workspace,
+            source_analysis_artifact,
+            artifact_id=artifact_id,
+            provider=provider,
+        )
+        paper_content = read_artifact_content(workspace, writer_artifact)
+        current_artifact = writer_artifact
+    else:
+        # Retry: use Editor's output from the previous iteration.
+        # The augmented source_analysis carries _edited_content.
+        augmented = json.loads(
+            read_artifact_content(workspace, source_analysis_artifact),
+        )
+        paper_content = augmented.get("_edited_content", "")
+        if not paper_content:
+            # Fallback: re-read the latest paper_draft artifact
+            prev = get_artifact(workspace, artifact_id, attempt)
+            paper_content = read_artifact_content(workspace, prev)
+        current_artifact = get_artifact(workspace, artifact_id, attempt)
 
     # ── Step 2: Load inputs ────────────────────────────────────────
     source_data = json.loads(
@@ -110,9 +125,9 @@ def run_paper_pipeline_with_reviewer(
 
     # ── Step 4: LLM unavailable → escalate immediately ────────────
     if reviewer_result.get("llm_unavailable"):
-        _update_verification_with_reviewer(workspace, writer_artifact, reviewer_result)
+        _update_verification_with_reviewer(workspace, current_artifact, reviewer_result)
         updated_artifact = get_artifact(
-            workspace, artifact_id, writer_artifact["version"],
+            workspace, artifact_id, current_artifact["version"],
         )
         return {
             "artifact": updated_artifact,
@@ -123,13 +138,13 @@ def run_paper_pipeline_with_reviewer(
         }
 
     # ── Step 5: Update verification with real scores ──────────────
-    _update_verification_with_reviewer(workspace, writer_artifact, reviewer_result)
+    _update_verification_with_reviewer(workspace, current_artifact, reviewer_result)
 
     elapsed = round(time.time() - overall_start, 2)
 
     # Re-read to get updated status
     updated_artifact = get_artifact(
-        workspace, artifact_id, writer_artifact["version"],
+        workspace, artifact_id, current_artifact["version"],
     )
 
     if reviewer_result["passed"]:
@@ -141,24 +156,73 @@ def run_paper_pipeline_with_reviewer(
             "total_elapsed_seconds": elapsed,
         }
 
-    # ── Step 5: Retry with feedback ───────────────────────────────
+    # ── Step 6: Retry with Editor ──────────────────────────────────
     feedback = reviewer_result.get("feedback", "")
     print(f"[REVIEWER FAIL] attempt {attempt}: {feedback[:200]}")
 
     if attempt <= max_retries:
-        # Inject feedback into source_analysis for the next Writer attempt.
-        # We create a temporary augmented source_analysis with feedback.
+        # ── Rule-based diff guard BEFORE Editor runs ────────────────
+        from hermes.core.verifier import check_editor_diff
+
+        # ── Call Editor ─────────────────────────────────────────────
+        from hermes.agents.editor_paper import run_paper_editor
+        edited_content = run_paper_editor(
+            paper_draft=paper_content,
+            source_analysis=source_data,
+            reviewer_feedback=feedback,
+            literature_support=lit_data,
+            provider=provider,
+        )
+
+        # ── Rule-based diff check ───────────────────────────────────
+        diff_ok, diff_violations = check_editor_diff(
+            original=paper_content,
+            edited=edited_content,
+            source_analysis=source_data,
+            literature_support=lit_data,
+        )
+        if not diff_ok:
+            print(f"[EDITOR DIFF FAIL] {diff_violations}")
+            # Editor violated rules — use original content and escalate
+            from hermes.core.storage import save_artifact
+            _ = save_artifact(
+                workspace=workspace,
+                artifact_id=f"{artifact_id}-edit-fail-{attempt}",
+                content=edited_content,
+                artifact_type="paper_draft",
+                produced_by_task=f"editor-fail-{attempt}",
+            )
+            return {
+                "artifact": updated_artifact,
+                "reviewer_verdict": reviewer_result,
+                "status": "escalated",
+                "attempts": attempt,
+                "total_elapsed_seconds": elapsed,
+            }
+
+        # ── Save edited paper as new version ─────────────────────────
+        from hermes.core.storage import save_artifact
+        edited_artifact = save_artifact(
+            workspace=workspace,
+            artifact_id=artifact_id,
+            content=edited_content,
+            artifact_type="paper_draft",
+            produced_by_task=f"editor-{attempt}",
+        )
+
+        # ── Recursive call with edited paper ─────────────────────────
+        # Pass the edited content through augmented source for the next iteration
         augmented_source = dict(source_data)
+        augmented_source["_edited_content"] = edited_content
         augmented_source["reviewer_feedback"] = feedback
         augmented_content = json.dumps(augmented_source, ensure_ascii=False)
 
-        from hermes.core.storage import save_artifact
         tmp_source = save_artifact(
             workspace=workspace,
             artifact_id=f"{artifact_id}-feedback-{attempt}",
             content=augmented_content,
             artifact_type="source_analysis",
-            produced_by_task=f"reviewer-feedback-{attempt}",
+            produced_by_task=f"editor-feedback-{attempt}",
         )
 
         inner = run_paper_pipeline_with_reviewer(
