@@ -7,6 +7,8 @@ RISK_MATRIX = {
     "course_outline":   "medium",
     "lecture_draft":    "high",
     "quiz_bank":        "high",
+    "paper_draft":      "high",
+    "final_paper":      "critical",
     "verified_content": "low",
     "final_content":    "medium",
     "debate_verdict":   "critical",

@@ -32,6 +32,8 @@
         "course_outline",
         "lecture_draft",
         "quiz_bank",
+        "paper_draft",
+        "final_paper",
         "verified_content",
         "final_content",
         "debate_verdict"
