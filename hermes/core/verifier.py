@@ -467,8 +467,9 @@ def check_literature_support(content: str, rubric: dict) -> dict:
             scores["has_excerpt_for_all"] = 1.0 if all_have_excerpt else 0.0
 
     if "search_attempted" in criterion_names:
-        # search_error != None means the API call failed — not a valid search
-        if search_error:
+        # search_error only matters when we got zero results from all queries.
+        # Partial rate-limiting that still returned entries is acceptable.
+        if search_error and not entries:
             scores["search_attempted"] = 0.0
         else:
             scores["search_attempted"] = 1.0 if (
