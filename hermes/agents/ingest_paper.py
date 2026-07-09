@@ -63,12 +63,42 @@ def ingest_existing_paper_as_draft(
     ]
 
     text_lower = paper_text.lower()
-    formatted = paper_text
+    formatted_lines = paper_text.split("\n")
+    new_lines = []
 
-    # Ensure IMRaD sections use consistent ## heading format
+    for line in formatted_lines:
+        stripped = line.strip()
+        if not stripped:
+            new_lines.append(line)
+            continue
+
+        added_heading = False
+        # First non-empty line that doesn't match a known section → title
+        is_section_name = any(
+            stripped.lower() == kw or stripped.lower().startswith(kw)
+            for kw, _ in sections
+        )
+        if not new_lines or (not is_section_name and not any(l.startswith("#") for l in new_lines)):
+            # Could be the title
+            if not is_section_name and not added_heading:
+                new_lines.append(f"# {stripped}")
+                added_heading = True
+
+        if not added_heading:
+            for keyword, heading in sections:
+                if stripped.lower() == keyword or stripped.lower().startswith(keyword):
+                    new_lines.append(heading)
+                    added_heading = True
+                    break
+        if not added_heading:
+            new_lines.append(line)
+
+    formatted = "\n".join(new_lines)
+
+    # Ensure IMRaD sections are present
+    text_lower = formatted.lower()
     for keyword, heading in sections:
         if keyword not in text_lower:
-            # Section missing — add placeholder
             formatted += f"\n\n{heading}\n[Content not extracted — please review.]\n"
 
     # Append metadata note about data availability

@@ -130,6 +130,22 @@ def run_paper_pipeline_with_reviewer(
             "total_elapsed_seconds": round(time.time() - overall_start, 2),
         }
 
+    # ── Step 4b: Search error → escalate (retry won't fix infra) ────
+    if (not reviewer_result.get("citation_valid")
+            and lit_data
+            and lit_data.get("search_error")):
+        _update_verification_with_reviewer(workspace, current_artifact, reviewer_result)
+        updated_artifact = get_artifact(
+            workspace, artifact_id, current_artifact["version"],
+        )
+        return {
+            "artifact": updated_artifact,
+            "reviewer_verdict": reviewer_result,
+            "status": "escalated",
+            "attempts": attempt,
+            "total_elapsed_seconds": round(time.time() - overall_start, 2),
+        }
+
     # ── Step 5: Update verification with real scores ──────────────
     _update_verification_with_reviewer(workspace, current_artifact, reviewer_result)
 
