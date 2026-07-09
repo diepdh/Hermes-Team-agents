@@ -1,9 +1,36 @@
 """Ingest an existing paper (.docx text) as a paper_draft artifact.
 
 Deterministic — no LLM. Just format the text into IMRaD structure.
+Also provides _build_self_source() to create a placeholder source_analysis
+from the paper's own numbers for internal consistency checking.
 """
 
 from __future__ import annotations
+
+import re
+from typing import Any
+
+
+def _build_self_source(paper_text: str) -> dict[str, Any]:
+    """Build a minimal source_analysis from the paper's own content.
+
+    Used when no external ground-truth data is available.  Extracts
+    numbers from the paper so Reviewer can at least check internal
+    consistency (does Abstract match Results? etc.).
+    """
+    numbers = list(set(re.findall(r"\b\d+(?:\.\d+)?%?\b", paper_text)))
+    # Filter out citation years (4-digit 19xx/20xx)
+    data_numbers = [
+        n for n in numbers
+        if not (len(n) == 4 and n.startswith(("19", "20")))
+    ]
+    return {
+        "paragraphs_summary": f"Self-extracted from existing paper ({len(data_numbers)} numeric values found).",
+        "tables": [],
+        "images": [],
+        "key_statistics": data_numbers[:20],  # cap at 20
+        "_note": "NO EXTERNAL GROUND TRUTH — internal consistency check only.",
+    }
 
 
 def ingest_existing_paper_as_draft(

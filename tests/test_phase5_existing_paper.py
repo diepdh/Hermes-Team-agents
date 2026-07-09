@@ -141,3 +141,43 @@ def test_assessment_rubric_pass():
     content = json.dumps(assessment)
     result = verify_artifact("existing_paper_assessment", content, rubric)
     assert result["passed"] is True, f"Score={result['score']}, detail={result['detail']}"
+
+
+# ── Tests: Self-source ────────────────────────────────────────────────
+
+def test_self_source_extracts_numbers():
+    from hermes.agents.ingest_paper import _build_self_source
+    s = _build_self_source(SAMPLE_PAPER)
+    assert len(s["key_statistics"]) > 0
+    assert "92" in s["key_statistics"] or "92%" in s["key_statistics"]
+    assert "128" in s["key_statistics"]
+    assert "NO EXTERNAL GROUND TRUTH" in s["_note"]
+
+
+def test_self_source_excludes_years():
+    from hermes.agents.ingest_paper import _build_self_source
+    text_with_year = "Study in 2020 showed 85% accuracy. Smith (2021) confirmed."
+    s = _build_self_source(text_with_year)
+    # Years 2020, 2021 should be excluded
+    assert "2020" not in s["key_statistics"]
+    assert "2021" not in s["key_statistics"]
+    assert "85" in s["key_statistics"] or "85%" in s["key_statistics"]
+
+
+def test_get_or_build_source_no_data():
+    from hermes.pipeline.existing_paper_pipeline import get_or_build_source
+    s = get_or_build_source(SAMPLE_PAPER, has_accompanying_data=False)
+    assert "_note" in s
+    assert "NO EXTERNAL GROUND TRUTH" in s["_note"]
+
+
+# ── Tests: Citation extraction ────────────────────────────────────────
+
+def test_extract_citations_from_text():
+    from hermes.pipeline.existing_paper_pipeline import _extract_citations_from_text
+    text = "Research by Smith (2020) and Doe, J. (2021) shows results."
+    cites = _extract_citations_from_text(text)
+    assert len(cites) == 2
+    authors = {c["author"] for c in cites}
+    assert "Smith" in authors
+    assert "Doe, J." in authors
