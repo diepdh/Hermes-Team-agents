@@ -164,3 +164,23 @@ def test_diff_guard_empty_lit_allows_citations():
     )
     # No literature → citation guard is skipped
     assert ok is True
+
+
+def test_diff_guard_detects_changed_citation_year():
+    """Changing a citation's year without literature support must be caught."""
+    # Original has Smith (2020) in literature
+    paper_with_cite = ORIGINAL_PAPER.replace(
+        "## References\nData provided by the attached source analysis document.",
+        "## References\nSmith, J. (2020). Assessment Methods in Education.",
+    )
+    # Editor changes year from 2020 to 2021 — but literature only has 2020
+    edited_year_changed = paper_with_cite.replace(
+        "Smith, J. (2020)", "Smith, J. (2021)",
+    )
+    ok, violations = check_editor_diff(
+        paper_with_cite, edited_year_changed, SAMPLE_SOURCE, SAMPLE_LIT,
+    )
+    assert ok is False, "Must detect year change for existing citation"
+    assert any("2021" in v or "year" in v.lower() for v in violations), (
+        f"Violations must mention the year change, got: {violations}"
+    )

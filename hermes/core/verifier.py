@@ -608,6 +608,47 @@ def check_editor_diff(
                         f"Editor added citation '{cite}' not in literature_support"
                     )
 
+    # ── Rule 3: citation year change guard ──────────────────────────
+    # For citations that exist in BOTH versions with the same author
+    # but a different year, verify the new year against literature_support.
+    if literature_support:
+        entries = literature_support.get("entries", []) or []
+        if entries:
+            # Build index: (author_lower, year) → True
+            lit_index = {}
+            for e in entries:
+                authors = (e.get("authors", "") or "").lower()
+                year = str(e.get("year", "") or "")
+                for author in authors.split(","):
+                    author_key = author.strip()
+                    if author_key and year:
+                        lit_index[(author_key, year)] = True
+
+            # Extract (author, year) pairs from both versions
+            cite_pattern = re.compile(
+                r"([A-Z][a-z]+(?:\s*,\s*[A-Z]\.)?)\s*\(\s*(\d{4})\s*\)",
+                re.IGNORECASE,
+            )
+            orig_pairs = {(m.group(1).strip().lower(), m.group(2)) for m in cite_pattern.finditer(original)}
+            edited_pairs = {(m.group(1).strip().lower(), m.group(2)) for m in cite_pattern.finditer(edited)}
+
+            for author, year in edited_pairs:
+                # Find same author in original with different year
+                orig_years = {y for a, y in orig_pairs if a == author}
+                if orig_years and year not in orig_years:
+                    # Year changed — verify against literature
+                    if (author, year) not in lit_index:
+                        # Also check without year specificity (author exists in any year)
+                        author_has_any_year = any(
+                            a == author for a, y in lit_index
+                        )
+                        if not author_has_any_year:
+                            violations.append(
+                                f"Editor changed citation year: '{author}' "
+                                f"from {orig_years} to {year}, "
+                                f"not found in literature_support"
+                            )
+
     return len(violations) == 0, violations
 
 

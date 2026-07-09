@@ -96,17 +96,10 @@ def run_paper_pipeline_with_reviewer(
         paper_content = read_artifact_content(workspace, writer_artifact)
         current_artifact = writer_artifact
     else:
-        # Retry: use Editor's output from the previous iteration.
-        # The augmented source_analysis carries _edited_content.
-        augmented = json.loads(
-            read_artifact_content(workspace, source_analysis_artifact),
-        )
-        paper_content = augmented.get("_edited_content", "")
-        if not paper_content:
-            # Fallback: re-read the latest paper_draft artifact
-            prev = get_artifact(workspace, artifact_id, attempt)
-            paper_content = read_artifact_content(workspace, prev)
+        # Retry: read the latest paper_draft from Artifact Store (persisted).
+        # Editor saved it via save_artifact() in the previous iteration.
         current_artifact = get_artifact(workspace, artifact_id, attempt)
+        paper_content = read_artifact_content(workspace, current_artifact)
 
     # ── Step 2: Load inputs ────────────────────────────────────────
     source_data = json.loads(
@@ -213,7 +206,6 @@ def run_paper_pipeline_with_reviewer(
         # ── Recursive call with edited paper ─────────────────────────
         # Pass the edited content through augmented source for the next iteration
         augmented_source = dict(source_data)
-        augmented_source["_edited_content"] = edited_content
         augmented_source["reviewer_feedback"] = feedback
         augmented_content = json.dumps(augmented_source, ensure_ascii=False)
 
