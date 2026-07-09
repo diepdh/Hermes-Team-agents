@@ -129,6 +129,46 @@ def test_check_citations_exist_empty_lit():
     assert violations == []
 
 
+def test_check_citations_search_error_with_citations_fails():
+    """search_error + paper has citations → citation_valid MUST be False."""
+    paper_with_fake_cite = PAPER_WITH_FAKE_CITATION  # has "Fake (2025)"
+    lit_with_error = {
+        "entries": [],
+        "search_attempted": True,
+        "search_error": "Literature Researcher unavailable",
+    }
+    ok, violations = check_citations_exist_in_literature(
+        paper_with_fake_cite, lit_with_error,
+    )
+    assert ok is False, (
+        "search_error + paper has citations must fail — we cannot verify them"
+    )
+    assert any("search failed" in v.lower() or "cannot verify" in v.lower() for v in violations)
+
+
+def test_check_citations_search_error_no_citations_passes():
+    """search_error but paper has NO real citations → trivially passes."""
+    paper_no_citations = """# Title: Test
+
+## Abstract
+Test.
+
+## References
+Data provided by the attached source analysis document.
+"""
+    lit_with_error = {
+        "entries": [],
+        "search_attempted": True,
+        "search_error": "API unavailable",
+    }
+    ok, violations = check_citations_exist_in_literature(
+        paper_no_citations, lit_with_error,
+    )
+    assert ok is True, (
+        "search_error but paper has no real citations should pass trivially"
+    )
+
+
 # ── Tests: Layer 2 — LLM-judge ─────────────────────────────────────────
 
 def test_reviewer_judge_returns_llm_unavailable_flag_when_llm_is_down():

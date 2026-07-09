@@ -23,11 +23,35 @@ def check_citations_exist_in_literature(
 
     Every citation in References must match an entry in literature_support
     (by title, author, or year).  If literature_support is None or has
-    zero entries, this check is skipped (trivially passes).
+    zero entries AND no search was attempted/errored, this check is
+    skipped (trivially passes).  If search was attempted but errored
+    while the paper has citations, this is NOT trivially valid.
     """
     entries = (literature_support or {}).get("entries", []) or []
+    search_error = (literature_support or {}).get("search_error")
+    search_attempted = (literature_support or {}).get("search_attempted", False)
+
+    # Check if paper has any citations at all
+    ref_match = re.search(
+        r"(?:^|\n)#+\s*(?:references?|tai lieu tham khao)\s*\n(.+)",
+        paper_draft, re.DOTALL | re.IGNORECASE,
+    )
+    ref_text = ref_match.group(1) if ref_match else ""
+    has_citations_in_paper = bool(re.search(
+        r"[A-Z][a-z]+(?:,\s*[A-Z]\.)*\s*\(\s*\d{4}\s*\)",
+        ref_text if ref_text else paper_draft,
+    ))
+
     if not entries:
-        return True, []  # no refs to check against → skip
+        # No literature to check against.  If search was attempted but
+        # errored AND the paper actually has citations, we CANNOT claim
+        # they're valid — we simply don't know.
+        if search_error and has_citations_in_paper:
+            return False, [
+                f"Cannot verify citations: literature search failed "
+                f"({search_error}). Manual review required."
+            ]
+        return True, []  # no refs to check OR no citations in paper -> skip
 
     # Build a searchable index from literature entries
     index: list[dict[str, Any]] = []
@@ -38,12 +62,13 @@ def check_citations_exist_in_literature(
             "year": str(e.get("year", "") or ""),
         })
 
-    # Extract References section from paper
-    ref_match = re.search(
-        r"(?:^|\n)#+\s*(?:references?|tài liệu tham khảo)\s*\n(.+)",
-        paper_draft, re.DOTALL | re.IGNORECASE,
-    )
-    ref_text = ref_match.group(1) if ref_match else ""
+    # Extract References section from paper (re-compute if needed)
+    if not ref_text:
+        ref_match2 = re.search(
+            r"(?:^|\n)#+\s*(?:references?|tai lieu tham khao)\s*\n(.+)",
+            paper_draft, re.DOTALL | re.IGNORECASE,
+        )
+        ref_text = ref_match2.group(1) if ref_match2 else ""
 
     violations: list[str] = []
 
