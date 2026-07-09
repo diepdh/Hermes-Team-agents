@@ -1,0 +1,21 @@
+{
+  "rubric_id": "R-existing-paper-assessment-v1",
+  "criteria": [
+    {
+      "name": "has_data_check",
+      "weight": 0.3,
+      "check": "Da xac dinh bai co du lieu thô di kem hay khong (has_accompanying_data)"
+    },
+    {
+      "name": "has_option_2",
+      "weight": 0.4,
+      "check": "Co it nhat 1 goi y thuc nghiem bo sung (option_2_suggestions khong rong)"
+    },
+    {
+      "name": "has_notes",
+      "weight": 0.3,
+      "check": "Co ghi chu danh gia ve tinh day du du lieu (data_completeness_notes khong rong)"
+    }
+  ],
+  "pass_threshold": 0.7
+}

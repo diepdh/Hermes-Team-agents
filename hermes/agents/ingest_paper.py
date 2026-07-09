@@ -1,0 +1,60 @@
+"""Ingest an existing paper (.docx text) as a paper_draft artifact.
+
+Deterministic — no LLM. Just format the text into IMRaD structure.
+"""
+
+from __future__ import annotations
+
+
+def ingest_existing_paper_as_draft(
+    paper_text: str,
+    suggestions: list[str] | None = None,
+    has_source_data: bool = False,
+) -> str:
+    """Convert an existing paper's text into a properly formatted paper_draft.
+
+    Args:
+        paper_text: Raw text extracted from the .docx file.
+        suggestions: Optional list of experimental suggestions to append
+                     as a non-scored "Suggested Future Work" section.
+        has_source_data: Whether ground-truth data is available for verification.
+
+    Returns:
+        Formatted IMRaD markdown string (paper_draft v1).
+
+    The function is DETERMINISTIC: it normalizes markdown headings and
+    appends suggestions without invoking any LLM.
+    """
+    # Normalize: ensure each section starts with ## Heading
+    sections = [
+        ("abstract", "## Abstract"),
+        ("introduction", "## Introduction"),
+        ("method", "## Methods"),
+        ("result", "## Results"),
+        ("discussion", "## Discussion"),
+        ("reference", "## References"),
+    ]
+
+    text_lower = paper_text.lower()
+    formatted = paper_text
+
+    # Ensure IMRaD sections use consistent ## heading format
+    for keyword, heading in sections:
+        if keyword not in text_lower:
+            # Section missing — add placeholder
+            formatted += f"\n\n{heading}\n[Content not extracted — please review.]\n"
+
+    # Append metadata note about data availability
+    meta_note = (
+        "\n\n<!-- META: has_source_data={} -->\n".format(str(has_source_data).lower())
+    )
+    formatted += meta_note
+
+    # Append suggestions as a separate, non-scored section
+    if suggestions:
+        formatted += "\n\n## Suggested Future Work\n"
+        formatted += "*(These are reviewer suggestions — not verified claims.)*\n\n"
+        for i, s in enumerate(suggestions, 1):
+            formatted += f"{i}. {s}\n"
+
+    return formatted

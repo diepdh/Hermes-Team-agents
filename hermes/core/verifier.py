@@ -653,6 +653,35 @@ def check_editor_diff(
 
 
 # -------------------------------------------------------------------
+# Checker: existing_paper_assessment (Phase 5.7) — rule-based
+# -------------------------------------------------------------------
+@checker_for("existing_paper_assessment")
+def check_existing_paper_assessment(content: str, rubric: dict) -> dict:
+    """Check assessment has required fields."""
+    import json
+    scores: Dict[str, float] = {}
+    criterion_names = {c["name"] for c in rubric.get("criteria", [])}
+
+    try:
+        payload = json.loads(content) if isinstance(content, str) else content
+    except json.JSONDecodeError:
+        payload = {}
+
+    if "has_data_check" in criterion_names:
+        scores["has_data_check"] = 1.0 if "has_accompanying_data" in payload else 0.0
+
+    if "has_option_2" in criterion_names:
+        suggestions = payload.get("option_2_suggestions", [])
+        scores["has_option_2"] = 1.0 if isinstance(suggestions, list) and len(suggestions) > 0 else 0.0
+
+    if "has_notes" in criterion_names:
+        notes = payload.get("data_completeness_notes", "")
+        scores["has_notes"] = 1.0 if isinstance(notes, str) and notes.strip() else 0.0
+
+    return _build_result(scores, rubric)
+
+
+# -------------------------------------------------------------------
 # Checker: final_paper (Phase 5.5) — rule-based: file exists + not empty + IMRaD
 # -------------------------------------------------------------------
 @checker_for("final_paper")

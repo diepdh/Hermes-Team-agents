@@ -9,6 +9,7 @@ RISK_MATRIX = {
     "quiz_bank":        "high",
     "paper_draft":      "high",
     "final_paper":      "critical",
+    "existing_paper_assessment": "medium",
     "verified_content": "low",
     "final_content":    "medium",
     "debate_verdict":   "critical",
