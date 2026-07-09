@@ -38,7 +38,7 @@ PROVIDER_REGISTRY = {
         "timeout_env_fallbacks": ["CX_TIMEOUT"],
         "litellm_prefix": "openai",
         "provider_type": "custom",
-        "default_model": "cx/gpt-5.4",
+        "default_model": "cx/gpt-5.4-mini",
         "default_base_url": "http://100.90.2.127:20128/v1",
         "default_timeout": 120,
     },
