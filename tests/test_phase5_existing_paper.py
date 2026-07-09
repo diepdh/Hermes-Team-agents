@@ -181,3 +181,31 @@ def test_extract_citations_from_text():
     authors = {c["author"] for c in cites}
     assert "Smith" in authors
     assert "Doe, J." in authors
+
+
+# ── Tests: Debate trigger for existing paper ──────────────────────────
+
+def test_existing_paper_draft_triggers_debate():
+    """paper_draft from existing paper pipeline must trigger debate (risk=high)."""
+    from hermes.core.risk import should_trigger_debate, get_risk_level
+    assert get_risk_level("paper_draft") == "high"
+    assert should_trigger_debate("paper_draft") is True, (
+        "paper_draft risk=high must auto-trigger debate, "
+        "regardless of whether it came from Writer or ingest"
+    )
+
+
+# ── Tests: Ingest heading normalization ───────────────────────────────
+
+def test_ingest_normalizes_headings():
+    """Bare section names must be converted to ## Heading format."""
+    text_with_bare_headings = "Introduction\nThis is the intro.\nMethods\nWe did tests."
+    result = ingest_existing_paper_as_draft(text_with_bare_headings)
+    assert "## Introduction" in result
+    assert "## Methods" in result
+
+
+def test_ingest_preserves_title():
+    """First non-section line should become # Title."""
+    result = ingest_existing_paper_as_draft("My Research Paper\n\n## Abstract\nTest.")
+    assert "# My Research Paper" in result

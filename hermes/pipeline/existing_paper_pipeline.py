@@ -142,3 +142,94 @@ def get_or_build_source(
     # No external data — build self-source
     from hermes.agents.ingest_paper import _build_self_source
     return _build_self_source(paper_text)
+
+
+def run_existing_paper_to_publisher(
+    workspace,
+    paper_draft_content: str,
+    source_data: dict[str, Any],
+    literature_data: dict[str, Any] | None = None,
+    artifact_id: str = "existing-paper-draft",
+    provider: str = "local_cx",
+) -> dict[str, Any]:
+    """Run Reviewer → Verification → Debate → Publisher for an existing paper.
+
+    This is the SAME flow as the original paper pipeline from paper_draft
+    onward.  Uses finalize_verification() which auto-triggers debate review
+    when risk=high.  Reuses 100% of Phase 5 infrastructure.
+    """
+    from hermes.agents.paper_reviewer import run_reviewer_judge
+    from hermes.core.storage import save_artifact, read_artifact_content, get_artifact
+    from hermes.core.verifier import finalize_verification, verify_artifact
+    from hermes.rubrics import load_rubric
+    from hermes.pipeline.debate_review_task import run_debate_review
+    from hermes.core.risk import should_trigger_debate
+    from hermes.agents.publisher import publish_paper_draft
+    from pathlib import Path
+
+    # Save paper_draft
+    paper_artifact = save_artifact(
+        workspace, artifact_id, paper_draft_content,
+        "paper_draft", f"T-{artifact_id}",
+    )
+
+    # Reviewer
+    verdict = run_reviewer_judge(
+        paper_draft_content, source_data, literature_data, provider=provider,
+    )
+
+    # Verification (risk-adjusted, may trigger debate)
+    rubric = load_rubric("paper_draft")
+    base_result = verify_artifact("paper_draft", paper_draft_content, rubric)
+    detail = dict(base_result.get("detail", {}))
+    detail["data_fidelity"] = verdict.get("data_fidelity", 0.5)
+    detail["reviewer_verdict"] = 1.0 if verdict.get("passed") else 0.0
+
+    score = sum(
+        detail.get(c["name"], 0.0) * c["weight"]
+        for c in rubric.get("criteria", [])
+    )
+    rubric_pass = score >= rubric.get("pass_threshold", 0.85)
+
+    # Debate review (auto-triggered by finalize_verification when risk=high)
+    debate_verdict = None
+    if should_trigger_debate("paper_draft") and rubric_pass and not verdict.get("llm_unavailable"):
+        debate_verdict = run_debate_review(
+            artifact_content=paper_draft_content,
+            artifact_id=artifact_id,
+            artifact_version=paper_artifact["version"],
+            artifact_type="paper_draft",
+            max_rounds=3,
+            workdir=workspace.root,
+        )
+
+    status = finalize_verification(
+        workspace, artifact_id, paper_artifact["version"],
+        "paper_draft",
+        {"passed": rubric_pass, "score": round(score, 3), "detail": detail},
+        notes=f"P5.7a pipeline, debate={'yes' if debate_verdict else 'no'}",
+        rubric_pass_threshold=rubric.get("pass_threshold", 0.85),
+        debate_verdict=debate_verdict,
+    )
+
+    # If escalated after debate, Human Gate must approve before Publisher
+    if status == "escalated":
+        return {
+            "artifact": paper_artifact,
+            "reviewer_verdict": verdict,
+            "debate_verdict": debate_verdict,
+            "status": "escalated",
+            "message": "Awaiting Human Gate approval before Publisher",
+        }
+
+    # Publisher
+    output = Path(workspace.root) / f"{artifact_id}-final.docx"
+    result_path = publish_paper_draft(paper_draft_content, output)
+
+    return {
+        "artifact": paper_artifact,
+        "reviewer_verdict": verdict,
+        "debate_verdict": debate_verdict,
+        "status": status,
+        "docx_path": str(result_path),
+    }
