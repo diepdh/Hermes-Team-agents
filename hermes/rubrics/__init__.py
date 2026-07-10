@@ -20,6 +20,7 @@ _TYPE_TO_FILE = {
     "paper_draft": "R-paper-draft-v1.json",
     "final_paper": "R-final-paper-v1.json",
     "existing_paper_assessment": "R-existing-paper-assessment-v1.json",
+    "generated_data": "R-generated-data-v1.json",
     "course_outline": "R-course-outline-v1.json",
     "lecture_draft": "R-lecture-draft-v1.json",
     "quiz_bank": "R-quiz-bank-v1.json",

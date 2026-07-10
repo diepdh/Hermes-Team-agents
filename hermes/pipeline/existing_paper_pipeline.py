@@ -1,8 +1,9 @@
-"""Phase 5.7a pipeline: edit an existing paper (option 2 — text suggestions).
+"""Phase 5.7 pipeline: edit an existing paper.
 
 Full chain:
-  existing .docx → assess → Human Gate (choose option=2)
-      → ingest as paper_draft v1
+  existing .docx → assess → Human Gate (choose option)
+    OPTION=1: run_code_runner() → generated_data → verify → ingest as paper_draft
+    OPTION=2: text suggestions → ingest as paper_draft
       → verify citations via Literature Researcher
       → Reviewer (with self-source if no external data)
       → Editor → Debate → Publisher
@@ -232,4 +233,149 @@ def run_existing_paper_to_publisher(
         "debate_verdict": debate_verdict,
         "status": status,
         "docx_path": str(result_path),
+    }
+
+
+# ============================================================================
+# Phase 5.7b — OPTION=1: run code, generate data, verify
+# ============================================================================
+
+def run_option1_code_runner(
+    workspace,
+    source_analysis_artifact: dict[str, Any],
+    existing_paper_assessment_artifact: dict[str, Any],
+    artifact_id: str | None = None,
+    provider: str = "local_cx",
+    max_retries: int = 3,
+) -> dict[str, Any]:
+    """Run code_runner with retry + verification + debate for OPTION=1.
+
+    This is the full lifecycle for generated_data:
+      run_code_runner() → verify_artifact() → finalize_verification()
+      → should_trigger_debate() → (if trigger) run_debate_review()
+
+    Args:
+        workspace: Workspace instance.
+        source_analysis_artifact: Verified source_analysis record.
+        existing_paper_assessment_artifact: Assessment from assess_existing_paper().
+        artifact_id: Optional artifact ID for generated_data.
+        provider: LLM provider.
+        max_retries: Max LLM calls if static scan or runtime fails.
+
+    Returns:
+        Dict with generated_data artifact, verification status, and debate info.
+
+    The caller MUST handle:
+      - "fail" after retries → pipeline stops, inform user
+      - "escalated" → pipeline stops, wait for Human Gate (D.4)
+    """
+    from hermes.agents.code_runner import run_code_runner as _run_code_runner
+    from hermes.core.storage import get_artifact, read_artifact_content
+    from hermes.core.verifier import verify_artifact, finalize_verification
+    from hermes.rubrics import load_rubric
+    from hermes.core.risk import should_trigger_debate
+    from hermes.pipeline.debate_review_task import run_debate_review
+    from hermes.core.events import log_event
+
+    if artifact_id is None:
+        import uuid
+        artifact_id = f"gen-data-{uuid.uuid4().hex[:8]}"
+
+    last_error = None
+
+    for attempt in range(1, max_retries + 1):
+        log_event(workspace, "code_runner_started", {
+            "artifact_id": artifact_id,
+            "attempt": attempt,
+            "max_retries": max_retries,
+        })
+
+        try:
+            gen_artifact = _run_code_runner(
+                workspace=workspace,
+                source_analysis_artifact=source_analysis_artifact,
+                existing_paper_assessment_artifact=existing_paper_assessment_artifact,
+                artifact_id=artifact_id,
+                provider=provider,
+            )
+            # Use the actual artifact_id returned (run_code_runner may modify it)
+            actual_art_id = gen_artifact["artifact_id"]
+            actual_version = gen_artifact["version"]
+        except RuntimeError as exc:
+            # LLM call failed or infrastructure error
+            last_error = str(exc)
+            log_event(workspace, "code_runner_error", {
+                "artifact_id": artifact_id,
+                "attempt": attempt,
+                "error": last_error,
+            })
+            continue
+
+        # Read the artifact content
+        gen_content_str = read_artifact_content(workspace, gen_artifact)
+        try:
+            gen_content = json.loads(gen_content_str)
+        except json.JSONDecodeError:
+            gen_content = {}
+
+        # Static scan check
+        static_ok = gen_content.get("static_scan_result", {}).get("passed", False)
+        if not static_ok:
+            last_error = f"static_scan_failed: {gen_content.get('static_scan_result', {}).get('violations', [])}"
+            # This artifact was already saved with violations — skip to next retry
+            continue
+
+        # Verify the artifact
+        rubric = load_rubric("generated_data")
+        base_result = verify_artifact("generated_data", gen_content_str, rubric)
+        rubric_pass = base_result["score"] >= rubric.get("pass_threshold", 0.90)
+
+        # Check timeout → escalated (principle 10)
+        timeout = gen_artifact.get("metadata", {}).get("timeout", False)
+
+        # Debate review (auto-triggered when risk=critical and rubric pass)
+        debate_verdict = None
+        if should_trigger_debate("generated_data") and rubric_pass and not timeout:
+            debate_verdict = run_debate_review(
+                artifact_content=gen_content_str,
+                artifact_id=actual_art_id,
+                artifact_version=actual_version,
+                artifact_type="generated_data",
+                max_rounds=3,
+                workdir=workspace.root,
+                workspace=workspace,
+            )
+
+        status = finalize_verification(
+            workspace, actual_art_id, actual_version,
+            "generated_data",
+            {"passed": rubric_pass, "score": round(base_result["score"], 3),
+             "detail": base_result.get("detail", {})},
+            notes=(
+                f"P5.7b code_runner attempt {attempt}/{max_retries}, "
+                f"debate={'yes' if debate_verdict else 'no'}"
+            ),
+            rubric_pass_threshold=rubric.get("pass_threshold", 0.90),
+            debate_verdict=debate_verdict,
+        )
+
+        gen_artifact = get_artifact(workspace, actual_art_id, actual_version)
+        return {
+            "artifact": gen_artifact,
+            "debate_verdict": debate_verdict,
+            "verification_status": status,
+            "attempts": attempt,
+        }
+
+    # Exhausted retries
+    log_event(workspace, "code_runner_error", {
+        "artifact_id": artifact_id,
+        "error": f"All {max_retries} retries exhausted: {last_error}",
+    })
+    return {
+        "artifact": None,
+        "debate_verdict": None,
+        "verification_status": "fail",
+        "attempts": max_retries,
+        "error": f"All {max_retries} retries exhausted: {last_error}",
     }

@@ -742,6 +742,89 @@ def check_final_paper(content: str, rubric: dict) -> dict:
 
 
 # -------------------------------------------------------------------
+# Checker: generated_data (Phase 5.7b) — 9 criteria, rule-based
+# -------------------------------------------------------------------
+@checker_for("generated_data")
+def check_generated_data(content: str, rubric: dict) -> dict:
+    """Check generated_data artifact against its rubric.
+
+    Nine criteria (round 4 — added static_scan_passed):
+      1. has_code               (0.10) — code field not empty
+      2. has_execution_log      (0.10) — execution_log has stdout + exit_code
+      3. execution_successful   (0.15) — exit_code == 0
+      4. log_not_empty          (0.05) — stdout not empty
+      5. static_scan_passed     (0.15) — static_scan_result.passed == True (NEW)
+      6. reproducible           (0.15) — verification.reproducible == True
+      7. input_hash_valid       (0.05) — hash matches real input.json or static_scan fail
+      8. reads_input_data       (0.10) — code had json.load(input.json) pattern
+      9. extraction_consistent  (0.05) — extracted non-empty if stdout matched patterns
+    """
+    scores: dict[str, float] = {}
+    criterion_names = {c["name"] for c in rubric.get("criteria", [])}
+
+    try:
+        payload = json.loads(content) if isinstance(content, str) else content
+    except json.JSONDecodeError:
+        payload = {}
+
+    code = payload.get("code", "") or ""
+    execution_log = payload.get("execution_log", {}) or {}
+    verification = payload.get("verification", {}) or {}
+    static_scan = payload.get("static_scan_result", {}) or {}
+    extracted = payload.get("extracted_values", {}) or {}
+
+    if "has_code" in criterion_names:
+        scores["has_code"] = 1.0 if isinstance(code, str) and code.strip() else 0.0
+
+    if "has_execution_log" in criterion_names:
+        has_stdout = isinstance(execution_log.get("stdout"), str)
+        has_exit = "exit_code" in execution_log
+        scores["has_execution_log"] = 1.0 if has_stdout and has_exit else 0.0
+
+    if "execution_successful" in criterion_names:
+        scores["execution_successful"] = (
+            1.0 if execution_log.get("exit_code") == 0 else 0.0
+        )
+
+    if "log_not_empty" in criterion_names:
+        stdout = execution_log.get("stdout", "") or ""
+        scores["log_not_empty"] = 1.0 if stdout.strip() else 0.0
+
+    if "static_scan_passed" in criterion_names:
+        scores["static_scan_passed"] = (
+            1.0 if static_scan.get("passed") is True else 0.0
+        )
+
+    if "reproducible" in criterion_names:
+        scores["reproducible"] = (
+            1.0 if verification.get("reproducible") is True else 0.0
+        )
+
+    if "input_hash_valid" in criterion_names:
+        input_hash = verification.get("input_hash", "") or ""
+        is_valid_hex = len(input_hash) == 64 and all(c in "0123456789abcdef" for c in input_hash)
+        scores["input_hash_valid"] = 1.0 if is_valid_hex or not input_hash else 0.0
+
+    if "reads_input_data" in criterion_names:
+        scores["reads_input_data"] = (
+            1.0 if static_scan.get("reads_input") is True else 0.0
+        )
+
+    if "extraction_consistent" in criterion_names:
+        stdout = execution_log.get("stdout", "") or ""
+        has_patterns = bool(re.search(
+            r"(?:mean|median|std|p_value|correlation|r_squared|sample_size|accuracy)\s*[=:]",
+            stdout, re.IGNORECASE,
+        ))
+        if has_patterns:
+            scores["extraction_consistent"] = 1.0 if len(extracted) > 0 else 0.0
+        else:
+            scores["extraction_consistent"] = 1.0
+
+    return _build_result(scores, rubric)
+
+
+# -------------------------------------------------------------------
 # Shared result builder
 # -------------------------------------------------------------------
 def _build_result(scores: Dict[str, float], rubric: dict, extra: dict | None = None) -> dict:

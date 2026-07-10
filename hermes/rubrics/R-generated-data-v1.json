@@ -1,0 +1,52 @@
+{
+  "rubric_id": "R-generated-data-v1",
+  "criteria": [
+    {
+      "name": "has_code",
+      "weight": 0.10,
+      "check": "code field không rỗng"
+    },
+    {
+      "name": "has_execution_log",
+      "weight": 0.10,
+      "check": "execution_log không rỗng, có stdout và exit_code"
+    },
+    {
+      "name": "execution_successful",
+      "weight": 0.15,
+      "check": "execution_log.exit_code == 0 (code chạy không lỗi)"
+    },
+    {
+      "name": "log_not_empty",
+      "weight": 0.05,
+      "check": "execution_log.stdout không rỗng (có output thật)"
+    },
+    {
+      "name": "static_scan_passed",
+      "weight": 0.15,
+      "check": "static_scan_result.passed == True — nếu fail, artifact fail toàn bộ (execution_log rỗng, không có gì để chấm các criterion khác)"
+    },
+    {
+      "name": "reproducible",
+      "weight": 0.15,
+      "check": "verification.reproducible == true (hash 2 lần chạy khớp)"
+    },
+    {
+      "name": "input_hash_valid",
+      "weight": 0.10,
+      "check": "verification.input_hash khớp SHA256 thật của input.json đã dùng (không bịa)"
+    },
+    {
+      "name": "reads_input_data",
+      "weight": 0.15,
+      "check": "static_scan_result.reads_input == true — code có lệnh đọc input.json"
+    },
+    {
+      "name": "extraction_consistent",
+      "weight": 0.05,
+      "check": "Nếu stdout match được pattern regex, extracted_values không rỗng; nếu không match, {} là hợp lệ (nguyên tắc 9)"
+    }
+  ],
+  "pass_threshold": 0.90,
+  "notes": "Risk=critical → floor 0.90 tự động. Round 4: thêm static_scan_passed (0.15). Fail-safe: static_scan_passed=False → max score ≤ 0.85 < 0.90; reproducible=False → max ≤ 0.85 < 0.90; reads_input=False → max ≤ 0.85 < 0.90. Ba criterion gate độc lập bảo vệ 3 vector: code nguy hiểm (static), code không tái lập (reproducible), code không dùng input (reads_input)."
+}

@@ -10,6 +10,7 @@ RISK_MATRIX = {
     "paper_draft":      "high",
     "final_paper":      "critical",
     "existing_paper_assessment": "medium",
+    "generated_data":   "critical",
     "verified_content": "low",
     "final_content":    "medium",
     "debate_verdict":   "critical",

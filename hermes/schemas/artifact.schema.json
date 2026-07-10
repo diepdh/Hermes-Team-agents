@@ -27,11 +27,18 @@
       "type": "string",
       "enum": [
         "lit_review_md",
+        "source_analysis",
+        "literature_support",
         "course_outline",
         "lecture_draft",
         "quiz_bank",
+        "paper_draft",
+        "final_paper",
+        "existing_paper_assessment",
+        "generated_data",
         "verified_content",
-        "final_content"
+        "final_content",
+        "debate_verdict"
       ]
     },
     "version": {
@@ -52,7 +59,7 @@
     },
     "verification_status": {
       "type": "string",
-      "enum": ["pending", "pass", "fail"]
+      "enum": ["pending", "pass", "fail", "escalated"]
     },
     "verification_notes": {
       "type": "string"

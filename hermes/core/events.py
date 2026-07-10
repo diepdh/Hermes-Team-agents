@@ -16,6 +16,12 @@ EVENT_TYPES = {
     "debate_round_completed",
     "debate_resolved",
     "human_approval",
+    # Phase 5.7b — Code Runner events
+    "code_runner_started",
+    "code_runner_completed",
+    "code_runner_error",
+    "code_runner_infrastructure_error",
+    "code_runner_static_scan_failed",
 }
 
 
