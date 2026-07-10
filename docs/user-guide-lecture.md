@@ -192,7 +192,30 @@ my-lecture-workspace/
 
 ---
 
-## 7. Tùy chỉnh rubric (nâng cao)
+## 7. Dùng với Hermes Desktop (khuyến nghị)
+
+Hermes Desktop cho phép bạn chạy pipeline qua giao diện chat thay vì viết code Python:
+
+1. **Mở Hermes Desktop:** `hermes desktop` (hoặc `hermes gui`)
+2. **Mở thư mục Engineering OS** trong Desktop (hoặc `cd` tới đó)
+3. **Chat với agent:**
+   > "Chạy pipeline soạn bài giảng với câu hỏi nghiên cứu: Phương pháp đánh giá năng lực tự học của sinh viên. Mục tiêu: Hiểu mô hình tự học, phân tích công cụ đánh giá, thiết kế rubric."
+
+Agent sẽ tự động:
+- Gọi `run_full_lecture_pipeline()` 
+- Báo cáo tiến độ từng stage
+- Thông báo khi có artifact cần Human Gate
+- Chờ bạn duyệt trước khi tiếp tục
+
+**Lợi ích khi dùng Desktop:**
+- Không cần viết code Python thủ công
+- Xem được tool call realtime (AI đang chạy stage nào)
+- Kéo thả file dữ liệu vào chat
+- Quản lý nhiều session: 1 session soạn bài giảng, 1 session khác viết paper
+
+---
+
+## 8. Tùy chỉnh rubric (nâng cao)
 
 Muốn thay đổi tiêu chuẩn chấm điểm, sửa file trong `hermes/rubrics/`:
 

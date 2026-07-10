@@ -208,6 +208,36 @@ uv add scipy
 
 ---
 
+## 7. Dùng với Hermes Desktop (khuyến nghị)
+
+Hermes Desktop cho phép bạn chạy toàn bộ paper pipeline qua giao diện chat:
+
+1. **Mở Hermes Desktop:** `hermes desktop` (hoặc `hermes gui`)
+2. **Mở thư mục Engineering OS** trong Desktop
+3. **Kéo thả file `.docx`** của bạn vào chat
+4. **Chat với agent:**
+   > "Đây là bài báo của tôi. Hãy phân tích và cải thiện nó bằng P5.7b: chạy code mô phỏng để bổ sung dữ liệu thực nghiệm."
+
+Agent sẽ tự động:
+- Gọi `assess_existing_paper()` để đánh giá bài
+- Hỏi bạn chọn OPTION=1 (chạy code) hay OPTION=2 (gợi ý văn bản)
+- Với OPTION=1: LLM sinh code → sandbox execute → extract kết quả → Debate Review → ghép vào paper_draft
+- Báo cáo `extracted_values` và kết quả Debate
+
+**Đối với P5.1–P5.6 (viết từ data thô):**
+
+> "Tôi có file data.csv và biểu đồ trong thư mục figures/. Hãy viết 1 research paper IMRaD từ dữ liệu này."
+
+Agent sẽ chạy Analyzer → Literature Researcher → Writer → Reviewer → Publisher.
+
+**Lợi ích khi dùng Desktop:**
+- Kéo thả file `.docx`, `.csv`, `.png` trực tiếp
+- Xem Debate realtime (Proponent vs Opponent tranh luận)
+- Duyệt artifact ngay trong chat (`/approve`)
+- Dashboard trực quan: `hermes dashboard`
+
+---
+
 **Xem thêm:**
 - [Hướng dẫn cài đặt](./user-guide-installation.md)
 - [Hướng dẫn soạn bài giảng](./user-guide-lecture.md)

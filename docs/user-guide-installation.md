@@ -168,7 +168,58 @@ Một số provider cần biến môi trường cụ thể. Xem danh sách trong
 
 ---
 
-## 8. Bước tiếp theo
+## 8. Cài đặt Hermes Desktop (tuỳ chọn — khuyến nghị)
+
+Hermes Engineering OS chạy trên nền **Hermes Agent** — 1 AI agent framework mạnh mẽ. Bạn có thể dùng qua CLI hoặc qua Hermes Desktop (ứng dụng giao diện Electron).
+
+### Cài Hermes Agent
+
+```bash
+# Cài qua script chính thức (tự động cài uv, Python, venv, launcher)
+curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
+
+# Hoặc cài qua pip
+pip install hermes-agent
+```
+
+### Chạy Hermes Desktop
+
+```bash
+# Khởi động desktop app
+hermes desktop
+
+# Alias ngắn hơn
+hermes gui
+```
+
+Tính năng của Hermes Desktop:
+- **Chat streaming** — giao diện chat với AI agent, thấy tool call realtime
+- **Session list** — quản lý nhiều phiên làm việc song song
+- **Drag & drop** — kéo thả file, ảnh vào chat
+- **Cmd+K palette** — tìm lệnh nhanh
+- **Model picker** trên thanh trạng thái
+- **Subagent watch-window** — theo dõi agent con đang chạy
+
+### Tích hợp Engineering OS với Hermes Desktop
+
+Sau khi cài Hermes Agent, mở Desktop và clone repo Engineering OS:
+
+```bash
+# Trong terminal của Hermes Desktop (hoặc terminal thường)
+git clone https://github.com/diepdh/Hermes-Team-agents.git
+cd Hermes-Team-agents
+
+# Cài dependencies của Engineering OS
+uv sync
+
+# Tạo file .env cấu hình LLM (xem mục 4)
+```
+
+Sau đó, mở thư mục `Hermes-Team-agents` trong Hermes Desktop — agent sẽ tự động đọc `AGENTS.md` / `CLAUDE.md` và có sẵn toàn bộ pipeline.
+
+> **Mẹo:** Dùng **profiles** của Hermes để tách biệt môi trường: 1 profile cho soạn bài giảng, 1 profile cho viết paper. Xem thêm tại [Hermes docs](https://hermes-agent.nousresearch.com/docs/).
+
+## 9. Bước tiếp theo
 
 - **[Hướng dẫn soạn bài giảng](./user-guide-lecture.md)** — Dùng pipeline tạo giáo trình tự động
 - **[Hướng dẫn viết bài báo khoa học](./user-guide-paper.md)** — Dùng pipeline P5.7 viết/cải thiện research paper
